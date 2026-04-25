@@ -1,32 +1,73 @@
-import { View, Text, TouchableOpacity, StyleSheet, ScrollView } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, ScrollView, Alert, ActivityIndicator } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useState, useCallback } from 'react';
 import { useFocusEffect } from 'expo-router';
-import { getWallet } from '../../lib/wallet/store';
+import { getWallet, getSyncQueue, updateWalletBalance, markSynced, mergeWalletTransactions } from '../../lib/wallet/store';
+import { apiPushTransactions, apiPullAccount } from '../../lib/api/client';
 import { formatCurrency } from '../../lib/utils';
 import { TNG } from '../../lib/theme';
 
 export default function UserHome() {
   const router = useRouter();
-  const [balance, setBalance] = useState(0);
+  const [offlineBalance, setOfflineBalance] = useState(0);
   const [userId, setUserId] = useState('');
+  const [displayName, setDisplayName] = useState('');
+  const [pushing, setPushing] = useState(false);
+  const [pulling, setPulling] = useState(false);
 
   useFocusEffect(
     useCallback(() => {
       const wallet = getWallet();
-      setBalance(wallet.balance);
+      setOfflineBalance(wallet.offlineBalance);
       setUserId(wallet.userId);
+      setDisplayName(wallet.displayName);
     }, [])
   );
+
+  const handlePush = async () => {
+    setPushing(true);
+    try {
+      const wallet = getWallet();
+      const queue = getSyncQueue().filter((item) => item.side === 'user');
+      if (queue.length === 0) {
+        Alert.alert('Nothing to push', 'No pending transactions.');
+        return;
+      }
+      const res = await apiPushTransactions({ deviceId: wallet.userId, transactions: queue });
+      res.syncedTxIds.forEach((id) => markSynced(id));
+      Alert.alert('Pushed', `${res.syncedTxIds.length} transaction(s) sent to server.`);
+    } catch {
+      Alert.alert('Push failed', 'Could not reach server. Try again later.');
+    } finally {
+      setPushing(false);
+    }
+  };
+
+  const handlePull = async () => {
+    setPulling(true);
+    try {
+      const wallet = getWallet();
+      const res = await apiPullAccount({ deviceId: wallet.userId, role: 'user' });
+      updateWalletBalance(res.offlineBalance);
+      mergeWalletTransactions(res.transactions);
+      setOfflineBalance(res.offlineBalance);
+      Alert.alert('Updated', `Balance: ${formatCurrency(res.offlineBalance)}, ${res.transactions.length} tx(s) synced.`);
+    } catch {
+      Alert.alert('Pull failed', 'Could not reach server. Try again later.');
+    } finally {
+      setPulling(false);
+    }
+  };
 
   return (
     <ScrollView style={styles.scroll} contentContainerStyle={styles.container}>
       {/* Balance Card */}
       <View style={styles.balanceCard}>
         <View style={styles.balanceCardInner}>
-          <Text style={styles.balanceLabel}>eWallet Balance</Text>
-          <Text style={styles.balance}>{formatCurrency(balance)}</Text>
+          <Text style={styles.balanceLabel}>Offline Balance</Text>
+          <Text style={styles.balance}>{formatCurrency(offlineBalance)}</Text>
           <View style={styles.divider} />
+          {displayName ? <Text style={styles.displayName}>{displayName}</Text> : null}
           <Text style={styles.userId}>ID: {userId}</Text>
         </View>
         {/* Yellow accent strip */}
@@ -44,6 +85,34 @@ export default function UserHome() {
         </View>
         <Text style={styles.payButtonText}>Scan & Pay</Text>
       </TouchableOpacity>
+
+      {/* Push / Pull row */}
+      <View style={styles.actionRow}>
+        <TouchableOpacity
+          style={[styles.actionButton, pushing && styles.actionButtonDisabled]}
+          onPress={handlePush}
+          disabled={pushing}
+          activeOpacity={0.85}
+        >
+          {pushing ? (
+            <ActivityIndicator size="small" color={TNG.blue} />
+          ) : (
+            <Text style={styles.actionButtonText}>Push Txs</Text>
+          )}
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.actionButton, pulling && styles.actionButtonDisabled]}
+          onPress={handlePull}
+          disabled={pulling}
+          activeOpacity={0.85}
+        >
+          {pulling ? (
+            <ActivityIndicator size="small" color={TNG.blue} />
+          ) : (
+            <Text style={styles.actionButtonText}>Pull Balance</Text>
+          )}
+        </TouchableOpacity>
+      </View>
 
       {/* Recent Transactions */}
       <View style={styles.section}>
@@ -134,6 +203,12 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255,255,255,0.2)',
     marginVertical: 14,
   },
+  displayName: {
+    fontSize: TNG.font.sm,
+    color: 'rgba(255,255,255,0.85)',
+    fontWeight: '600',
+    marginBottom: 4,
+  },
   userId: {
     fontSize: TNG.font.xs,
     color: 'rgba(255,255,255,0.55)',
@@ -146,7 +221,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 24,
+    marginBottom: 12,
     gap: 12,
     shadowColor: 'rgba(255,215,0,0.4)',
     shadowOffset: { width: 0, height: 4 },
@@ -172,6 +247,30 @@ const styles = StyleSheet.create({
     fontSize: TNG.font.md,
     fontWeight: '700',
     color: TNG.textOnYellow,
+  },
+  actionRow: {
+    flexDirection: 'row',
+    gap: 10,
+    marginBottom: 24,
+  },
+  actionButton: {
+    flex: 1,
+    backgroundColor: TNG.bgCard,
+    borderRadius: TNG.radius.lg,
+    padding: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1.5,
+    borderColor: TNG.blue,
+    minHeight: 48,
+  },
+  actionButtonDisabled: {
+    opacity: 0.6,
+  },
+  actionButtonText: {
+    fontSize: TNG.font.sm,
+    fontWeight: '600',
+    color: TNG.blue,
   },
   section: {
     gap: 12,

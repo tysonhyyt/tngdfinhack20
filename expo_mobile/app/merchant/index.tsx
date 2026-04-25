@@ -1,25 +1,64 @@
-import { View, Text, TouchableOpacity, StyleSheet, ScrollView } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, ScrollView, Alert, ActivityIndicator } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useState, useCallback } from 'react';
 import { useFocusEffect } from 'expo-router';
-import { getMerchant } from '../../lib/wallet/store';
+import { getMerchant, getSyncQueue, updateMerchantBalance, markSynced, mergeMerchantTransactions } from '../../lib/wallet/store';
+import { apiPushTransactions, apiPullAccount } from '../../lib/api/client';
 import { formatCurrency } from '../../lib/utils';
 import { TNG } from '../../lib/theme';
 
 export default function MerchantHome() {
   const router = useRouter();
-  const [totalReceived, setTotalReceived] = useState(0);
+  const [offlineBalance, setOfflineBalance] = useState(0);
   const [txCount, setTxCount] = useState(0);
   const [merchantName, setMerchantName] = useState('');
+  const [pushing, setPushing] = useState(false);
+  const [pulling, setPulling] = useState(false);
 
   useFocusEffect(
     useCallback(() => {
       const merchant = getMerchant();
-      setTotalReceived(merchant.totalReceived);
+      setOfflineBalance(merchant.offlineBalance);
       setTxCount(merchant.transactions.length);
       setMerchantName(merchant.merchantName);
     }, [])
   );
+
+  const handlePush = async () => {
+    setPushing(true);
+    try {
+      const merchant = getMerchant();
+      const queue = getSyncQueue().filter((item) => item.side === 'merchant');
+      if (queue.length === 0) {
+        Alert.alert('Nothing to push', 'No pending transactions.');
+        return;
+      }
+      const res = await apiPushTransactions({ deviceId: merchant.merchantId, transactions: queue });
+      res.syncedTxIds.forEach((id) => markSynced(id));
+      Alert.alert('Pushed', `${res.syncedTxIds.length} transaction(s) sent to server.`);
+    } catch {
+      Alert.alert('Push failed', 'Could not reach server. Try again later.');
+    } finally {
+      setPushing(false);
+    }
+  };
+
+  const handlePull = async () => {
+    setPulling(true);
+    try {
+      const merchant = getMerchant();
+      const res = await apiPullAccount({ deviceId: merchant.merchantId, role: 'merchant' });
+      updateMerchantBalance(res.offlineBalance);
+      mergeMerchantTransactions(res.transactions);
+      setOfflineBalance(res.offlineBalance);
+      setTxCount(getMerchant().transactions.length);
+      Alert.alert('Updated', `Balance: ${formatCurrency(res.offlineBalance)}, ${res.transactions.length} tx(s) synced.`);
+    } catch {
+      Alert.alert('Pull failed', 'Could not reach server. Try again later.');
+    } finally {
+      setPulling(false);
+    }
+  };
 
   return (
     <ScrollView style={styles.scroll} contentContainerStyle={styles.container}>
@@ -37,8 +76,8 @@ export default function MerchantHome() {
         <View style={styles.cardDivider} />
         <View style={styles.statsRow}>
           <View style={styles.stat}>
-            <Text style={styles.statValue}>{formatCurrency(totalReceived)}</Text>
-            <Text style={styles.statLabel}>Total Received</Text>
+            <Text style={styles.statValue}>{formatCurrency(offlineBalance)}</Text>
+            <Text style={styles.statLabel}>Offline Balance</Text>
           </View>
           <View style={styles.statDivider} />
           <View style={styles.stat}>
@@ -61,12 +100,39 @@ export default function MerchantHome() {
         <Text style={styles.primaryButtonText}>Start Receiving Payments</Text>
       </TouchableOpacity>
 
+      <View style={styles.actionRow}>
+        <TouchableOpacity
+          style={[styles.actionButton, pushing && styles.actionButtonDisabled]}
+          onPress={handlePush}
+          disabled={pushing}
+          activeOpacity={0.85}
+        >
+          {pushing ? (
+            <ActivityIndicator size="small" color={TNG.blue} />
+          ) : (
+            <Text style={styles.actionButtonText}>Push Txs</Text>
+          )}
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.actionButton, pulling && styles.actionButtonDisabled]}
+          onPress={handlePull}
+          disabled={pulling}
+          activeOpacity={0.85}
+        >
+          {pulling ? (
+            <ActivityIndicator size="small" color={TNG.blue} />
+          ) : (
+            <Text style={styles.actionButtonText}>Pull Balance</Text>
+          )}
+        </TouchableOpacity>
+      </View>
+
       <TouchableOpacity
-        style={styles.secondaryButton}
+        style={styles.ghostButton}
         onPress={() => router.push('/merchant/history')}
         activeOpacity={0.85}
       >
-        <Text style={styles.secondaryButtonText}>Transaction History</Text>
+        <Text style={styles.ghostButtonText}>Transaction History</Text>
       </TouchableOpacity>
     </ScrollView>
   );
@@ -190,17 +256,37 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: TNG.textOnYellow,
   },
-  secondaryButton: {
+  actionRow: {
+    flexDirection: 'row',
+    gap: 10,
+    marginBottom: 12,
+  },
+  actionButton: {
+    flex: 1,
     backgroundColor: TNG.bgCard,
     borderRadius: TNG.radius.lg,
-    padding: 18,
+    padding: 14,
     alignItems: 'center',
+    justifyContent: 'center',
     borderWidth: 1.5,
     borderColor: TNG.blue,
+    minHeight: 48,
   },
-  secondaryButtonText: {
-    fontSize: TNG.font.base,
+  actionButtonDisabled: {
+    opacity: 0.6,
+  },
+  actionButtonText: {
+    fontSize: TNG.font.sm,
     fontWeight: '600',
     color: TNG.blue,
+  },
+  ghostButton: {
+    padding: 16,
+    alignItems: 'center',
+  },
+  ghostButtonText: {
+    fontSize: TNG.font.base,
+    fontWeight: '500',
+    color: TNG.textSecondary,
   },
 });

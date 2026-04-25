@@ -1,4 +1,5 @@
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, ActivityIndicator } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, ActivityIndicator, Alert } from 'react-native';
+import * as LocalAuthentication from 'expo-local-authentication';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
 import QRCode from 'react-native-qrcode-svg';
@@ -31,7 +32,19 @@ export default function PayScreen() {
   const payAmount = parseFloat(amount) || 0;
 
   const handleConfirmPay = async () => {
-    if (payAmount <= 0 || payAmount > wallet.balance) return;
+    if (payAmount <= 0 || payAmount > wallet.offlineBalance) return;
+
+    const auth = await LocalAuthentication.authenticateAsync({
+      promptMessage: `Confirm payment of ${formatCurrency(payAmount)}`,
+      fallbackLabel: 'Use passcode',
+      cancelLabel: 'Cancel',
+    });
+    if (!auth.success) {
+      if (auth.error !== 'user_cancel') {
+        Alert.alert('Authentication failed', 'Could not verify identity.');
+      }
+      return;
+    }
 
     const id = generateTransactionId();
     const identity = await getIdentity();
@@ -171,7 +184,7 @@ export default function PayScreen() {
 
   // Step 2: Confirm
   if (step === 'confirm') {
-    const insufficient = payAmount > wallet.balance;
+    const insufficient = payAmount > wallet.offlineBalance;
     return (
       <View style={styles.container}>
         <View style={styles.merchantBadge}>
@@ -187,7 +200,7 @@ export default function PayScreen() {
         <View style={styles.confirmCard}>
           <Text style={styles.confirmLabel}>Amount</Text>
           <Text style={styles.amountDisplay}>{formatCurrency(payAmount)}</Text>
-          <Text style={styles.balanceText}>Balance: {formatCurrency(wallet.balance)}</Text>
+          <Text style={styles.balanceText}>Balance: {formatCurrency(wallet.offlineBalance)}</Text>
         </View>
 
         {insufficient && (
@@ -284,7 +297,7 @@ export default function PayScreen() {
         </View>
         <Text style={styles.doneTitle}>Complete!</Text>
         <Text style={styles.doneAmount}>{formatCurrency(payAmount)}</Text>
-        <Text style={styles.doneBalance}>New balance: {formatCurrency(wallet.balance)}</Text>
+        <Text style={styles.doneBalance}>New balance: {formatCurrency(wallet.offlineBalance)}</Text>
       </View>
       <TouchableOpacity
         style={styles.primaryButton}

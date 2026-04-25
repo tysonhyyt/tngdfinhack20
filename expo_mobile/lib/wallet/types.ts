@@ -17,8 +17,10 @@ export interface Transaction {
 }
 
 export interface WalletState {
-  balance: number;
+  offlineBalance: number;
   userId: string;
+  displayName: string;
+  sessionInitialized: boolean;
   pubKeyHex: string;
   cert: string;
   transactions: Transaction[];
@@ -27,10 +29,11 @@ export interface WalletState {
 export interface MerchantState {
   merchantId: string;
   merchantName: string;
+  sessionInitialized: boolean;
   pubKeyHex: string;
   cert: string;
   transactions: Transaction[];
-  totalReceived: number;
+  offlineBalance: number;
 }
 
 export interface SyncQueueItem {

@@ -14,8 +14,10 @@ export function getWallet(): WalletState {
   const raw = storage.getString(WALLET_KEY);
   if (raw) return JSON.parse(raw);
   const initial: WalletState = {
-    balance: DEFAULT_BALANCE,
+    offlineBalance: DEFAULT_BALANCE,
     userId: `user-${Math.random().toString(36).slice(2, 8)}`,
+    displayName: '',
+    sessionInitialized: false,
     pubKeyHex: '',
     cert: '',
     transactions: [],
@@ -35,10 +37,34 @@ export function setWalletIdentity(pubKeyHex: string, cert: string) {
   saveWallet(wallet);
 }
 
+export function setWalletSession(displayName: string, offlineBalance: number) {
+  const wallet = getWallet();
+  wallet.displayName = displayName;
+  wallet.offlineBalance = offlineBalance;
+  wallet.sessionInitialized = true;
+  saveWallet(wallet);
+}
+
+export function updateWalletBalance(balance: number) {
+  const wallet = getWallet();
+  wallet.offlineBalance = balance;
+  saveWallet(wallet);
+}
+
+export function mergeWalletTransactions(serverTxs: Transaction[]) {
+  const wallet = getWallet();
+  const localById = new Map(wallet.transactions.map((t) => [t.id, t]));
+  for (const tx of serverTxs) {
+    localById.set(tx.id, { ...localById.get(tx.id), ...tx, syncStatus: 'synced' });
+  }
+  wallet.transactions = Array.from(localById.values()).sort((a, b) => b.timestamp - a.timestamp);
+  saveWallet(wallet);
+}
+
 export function deductBalance(amount: number): { success: boolean; wallet: WalletState } {
   const wallet = getWallet();
-  if (wallet.balance < amount) return { success: false, wallet };
-  wallet.balance -= amount;
+  if (wallet.offlineBalance < amount) return { success: false, wallet };
+  wallet.offlineBalance -= amount;
   saveWallet(wallet);
   return { success: true, wallet };
 }
@@ -71,10 +97,11 @@ export function getMerchant(): MerchantState {
   const initial: MerchantState = {
     merchantId: `merchant-${Math.random().toString(36).slice(2, 8)}`,
     merchantName: 'My Store',
+    sessionInitialized: false,
     pubKeyHex: '',
     cert: '',
     transactions: [],
-    totalReceived: 0,
+    offlineBalance: 0,
   };
   storage.set(MERCHANT_KEY, JSON.stringify(initial));
   return initial;
@@ -91,11 +118,35 @@ export function setMerchantIdentity(pubKeyHex: string, cert: string) {
   saveMerchant(merchant);
 }
 
+export function setMerchantSession(merchantName: string, offlineBalance: number) {
+  const merchant = getMerchant();
+  merchant.merchantName = merchantName;
+  merchant.offlineBalance = offlineBalance;
+  merchant.sessionInitialized = true;
+  saveMerchant(merchant);
+}
+
+export function updateMerchantBalance(balance: number) {
+  const merchant = getMerchant();
+  merchant.offlineBalance = balance;
+  saveMerchant(merchant);
+}
+
+export function mergeMerchantTransactions(serverTxs: Transaction[]) {
+  const merchant = getMerchant();
+  const localById = new Map(merchant.transactions.map((t) => [t.id, t]));
+  for (const tx of serverTxs) {
+    localById.set(tx.id, { ...localById.get(tx.id), ...tx, syncStatus: 'synced' });
+  }
+  merchant.transactions = Array.from(localById.values()).sort((a, b) => b.timestamp - a.timestamp);
+  saveMerchant(merchant);
+}
+
 export function addMerchantTransaction(tx: Transaction) {
   const merchant = getMerchant();
   if (merchant.transactions.some((t) => t.id === tx.id)) return;
   merchant.transactions.unshift(tx);
-  merchant.totalReceived += tx.amount;
+  merchant.offlineBalance += tx.amount;
   saveMerchant(merchant);
 }
 

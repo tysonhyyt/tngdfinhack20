@@ -2,7 +2,8 @@ import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect } from 'react';
 import { initIdentity } from '../lib/crypto/identity';
-import { getWallet, getMerchant, setWalletIdentity, setMerchantIdentity, deduplicateStorage } from '../lib/wallet/store';
+import { getWallet, getMerchant, setWalletIdentity, setMerchantIdentity, deduplicateStorage, setWalletSession, setMerchantSession } from '../lib/wallet/store';
+import { apiInitSession } from '../lib/api/client';
 import { TNG } from '../lib/theme';
 
 export default function RootLayout() {
@@ -15,6 +16,19 @@ export default function RootLayout() {
       const identity = await initIdentity(deviceId);
       if (!wallet.pubKeyHex) setWalletIdentity(identity.pubKeyHex, identity.cert);
       if (!merchant.pubKeyHex) setMerchantIdentity(identity.pubKeyHex, identity.cert);
+
+      try {
+        if (!wallet.sessionInitialized) {
+          const userSession = await apiInitSession({ deviceId: wallet.userId, role: 'user' });
+          setWalletSession(userSession.displayName, userSession.offlineBalance);
+        }
+        if (!merchant.sessionInitialized) {
+          const merchantSession = await apiInitSession({ deviceId: merchant.merchantId, role: 'merchant' });
+          setMerchantSession(merchantSession.merchantName ?? merchantSession.displayName, merchantSession.offlineBalance);
+        }
+      } catch {
+        // offline — use local values silently
+      }
     }
     bootstrap();
   }, []);
