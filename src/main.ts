@@ -1,7 +1,7 @@
 import "dotenv/config";
 import express from "express";
 import { accountRouter } from "./modules/account/account.controller";
-import { transactionRouter } from "./modules/transaction/transaction.controller";
+import { transactionRouter, transactionSyncRouter } from "./modules/transaction/transaction.controller";
 import { kafkaProducer } from "./infrastructure/kafka.service";
 import { connectDatabase, dbPool } from "./infrastructure/db.service";
 
@@ -14,6 +14,7 @@ app.use("/account", accountRouter);
 
 // Routes
 app.use("/api/transactions", transactionRouter);
+app.use("/sync", transactionSyncRouter);
 
 // Health check
 app.get("/health", (req, res) => {
