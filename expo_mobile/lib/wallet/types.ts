@@ -6,17 +6,36 @@ export interface Transaction {
   fromUserId: string;
   toMerchantId: string;
   status: 'pending' | 'completed' | 'failed';
+  // Crypto fields
+  signature?: string;      // user's ECDSA sig over tx payload
+  userPubKey?: string;     // user's public key hex
+  cert?: string;           // user's self-signed cert JSON
+  ackSignature?: string;   // merchant's ECDSA sig over txId (ACK)
+  merchantPubKey?: string; // merchant's public key hex
+  // Sync
+  syncStatus?: 'pending_sync' | 'synced';
 }
 
 export interface WalletState {
   balance: number;
   userId: string;
+  pubKeyHex: string;
+  cert: string;
   transactions: Transaction[];
 }
 
 export interface MerchantState {
   merchantId: string;
   merchantName: string;
+  pubKeyHex: string;
+  cert: string;
   transactions: Transaction[];
   totalReceived: number;
+}
+
+export interface SyncQueueItem {
+  txId: string;
+  side: 'user' | 'merchant';
+  tx: Transaction;
+  queuedAt: number;
 }

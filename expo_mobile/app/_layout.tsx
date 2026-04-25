@@ -1,7 +1,24 @@
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
+import { useEffect } from 'react';
+import { initIdentity } from '../lib/crypto/identity';
+import { getWallet, getMerchant, setWalletIdentity, setMerchantIdentity } from '../lib/wallet/store';
 
 export default function RootLayout() {
+  useEffect(() => {
+    async function bootstrap() {
+      const wallet = getWallet();
+      const merchant = getMerchant();
+      // Init shared keypair for this device (one identity per device)
+      const deviceId = wallet.userId; // use userId as device id
+      const identity = await initIdentity(deviceId);
+      // Persist pubkey + cert into both wallet and merchant stores
+      if (!wallet.pubKeyHex) setWalletIdentity(identity.pubKeyHex, identity.cert);
+      if (!merchant.pubKeyHex) setMerchantIdentity(identity.pubKeyHex, identity.cert);
+    }
+    bootstrap();
+  }, []);
+
   return (
     <>
       <StatusBar style="light" />

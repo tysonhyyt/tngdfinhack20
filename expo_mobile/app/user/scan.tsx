@@ -30,17 +30,17 @@ export default function ScanQR() {
     try {
       const qrData = JSON.parse(data);
       if (qrData.type === 'PAYMENT_REQUEST') {
-        // QR from merchant — go to pay screen with amount
         router.push({
           pathname: '/user/pay',
           params: {
             merchantId: qrData.merchantId,
             merchantName: qrData.merchantName || 'Merchant',
-            amount: String(qrData.amount || 0),
+            merchantPubKey: qrData.merchantPubKey || '',
+            merchantCert: qrData.cert || '',
           },
         });
       } else {
-        setScanned(false); // Not a valid payment QR, retry
+        setScanned(false);
       }
     } catch {
       setScanned(false);

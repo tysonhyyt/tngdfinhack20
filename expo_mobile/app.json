@@ -37,7 +37,8 @@
         {
           "cameraPermission": "Allow QR Pay to use the camera to scan QR codes"
         }
-      ]
+      ],
+      "expo-secure-store"
     ],
     "extra": {
       "router": {},
