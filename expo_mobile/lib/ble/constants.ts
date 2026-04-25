@@ -1,0 +1,12 @@
+// BLE Service and Characteristic UUIDs for offline payment
+export const BLE_SERVICE_UUID = '12345678-1234-1234-1234-123456789abc';
+
+// Characteristic UUIDs
+export const PAYMENT_REQUEST_CHAR_UUID = '12345678-1234-1234-1234-000000000001';
+export const PAYMENT_ACK_CHAR_UUID = '12345678-1234-1234-1234-000000000002';
+export const PAYMENT_CONFIRM_CHAR_UUID = '12345678-1234-1234-1234-000000000003';
+
+// BLE config
+export const BLE_DEVICE_NAME = 'BLEPay-Merchant';
+export const SCAN_TIMEOUT_MS = 15000;
+export const CONNECTION_TIMEOUT_MS = 10000;
