@@ -1,5 +1,6 @@
 import "dotenv/config";
 import express from "express";
+import { sessionRouter } from "./modules/session/session.controller";
 import { accountRouter } from "./modules/account/account.controller";
 import {
   transactionRouter,
@@ -23,6 +24,7 @@ app.use("/account", accountRouter);
 // Routes
 app.use("/api/transactions", transactionRouter);
 app.use("/sync", transactionSyncRouter);
+app.use("/session", sessionRouter);
 
 // Health check
 app.get("/health", (req, res) => {
