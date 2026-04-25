@@ -26,18 +26,26 @@ app.use("/sync", transactionSyncRouter);
 
 // Health check
 app.get("/health", (req, res) => {
-  res.status(200).json({ status: "ok", timestamp: new Date().toISOString() });
+  console.log("[GET /health] payload (query):", req.query);
+  const body = { status: "ok", timestamp: new Date().toISOString() };
+  console.log("[GET /health] returning:", body);
+  res.status(200).json(body);
 });
 
 // DB connectivity test
 app.get("/api/db-test", async (req, res) => {
+  console.log("[GET /api/db-test] payload (query):", req.query);
   try {
     const [rows] = await dbPool.query("SELECT NOW() AS now");
     const nowValue =
       Array.isArray(rows) && rows.length > 0 ? (rows[0] as any).now : null;
-    res.json({ success: true, now: nowValue });
+    const body = { success: true, now: nowValue };
+    console.log("[GET /api/db-test] returning:", body);
+    res.json(body);
   } catch (error) {
-    res.status(500).json({ success: false, error: (error as Error).message });
+    const body = { success: false, error: (error as Error).message };
+    console.log("[GET /api/db-test] returning:", body);
+    res.status(500).json(body);
   }
 });
 
