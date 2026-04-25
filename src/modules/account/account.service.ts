@@ -100,7 +100,9 @@ export async function findOrCreateAccountByDeviceIdAndRole(
   const currency = 'USD';
 
   await dbPool.query(
-    'INSERT INTO account (user_id, device_id, role, offline_balance, currency) VALUES (?, ?, ?, ?, ?)',
+    `INSERT INTO account (user_id, device_id, role, offline_balance, currency)
+    VALUES (?, ?, ?, ?, ?)
+    ON DUPLICATE KEY UPDATE device_id = device_id`,
     [deviceId, deviceId, role, offlineBalance, currency]
   );
 
