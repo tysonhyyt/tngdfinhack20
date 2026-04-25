@@ -2,6 +2,7 @@ import "dotenv/config";
 import express from "express";
 import { transactionRouter } from "./modules/transaction/transaction.controller";
 import { kafkaProducer } from "./infrastructure/kafka.service";
+import { connectDatabase, dbPool } from "./infrastructure/db.service";
 
 const app = express();
 const port = process.env.PORT || 3000;
@@ -17,15 +18,32 @@ app.get("/health", (req, res) => {
   res.status(200).json({ status: "ok", timestamp: new Date().toISOString() });
 });
 
-const server = app.listen(port, async () => {
+// DB connectivity test
+app.get('/api/db-test', async (req, res) => {
   try {
-    await kafkaProducer.connect();
-    console.log(`[Server]: Backend running on port ${port}`);
+    const [rows] = await dbPool.query('SELECT NOW() AS now');
+    const nowValue = Array.isArray(rows) && rows.length > 0 ? (rows[0] as any).now : null;
+    res.json({ success: true, now: nowValue });
   } catch (error) {
-    console.error("[Kafka]: Failed to connect producer", error);
-    process.exit(1);
+    res.status(500).json({ success: false, error: (error as Error).message });
   }
 });
+
+let server: ReturnType<typeof app.listen>;
+
+async function start() {
+  try {
+    await connectDatabase();
+    await kafkaProducer.connect();
+
+    server = app.listen(port, () => {
+      console.log(`[Server]: Backend running on port ${port}`);
+    });
+  } catch (error) {
+    console.error("[Startup]: Failed to start server", error);
+    process.exit(1);
+  }
+}
 
 async function shutdown(signal: NodeJS.Signals) {
   console.log(`[Server]: Received ${signal}, shutting down...`);
@@ -36,10 +54,12 @@ async function shutdown(signal: NodeJS.Signals) {
     console.error("[Kafka]: Error while disconnecting producer", error);
   }
 
-  server.close(() => {
+  server?.close(() => {
     process.exit(0);
   });
 }
 
 process.on("SIGINT", () => void shutdown("SIGINT"));
 process.on("SIGTERM", () => void shutdown("SIGTERM"));
+
+void start();
