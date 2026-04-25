@@ -1,0 +1,29 @@
+{
+  "name": "tngdfinhack20",
+  "version": "1.0.0",
+  "description": "> A peer-to-peer offline payment system using Bluetooth Low Energy (BLE), secured with TEE-backed cryptographic signing, ECDH session encryption, and offline-first double-spend prevention.",
+  "main": "index.js",
+  "directories": {
+    "doc": "docs"
+  },
+  "scripts": {
+    "test": "echo 'No tests defined' && exit 0",
+    "build": "mkdir -p dist && cp src/index.js dist/index.js",
+    "start": "node dist/index.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/tysonhyyt/tngdfinhack20.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/tysonhyyt/tngdfinhack20/issues"
+  },
+  "homepage": "https://github.com/tysonhyyt/tngdfinhack20#readme",
+  "dependencies": {
+    "express": "^5.2.1"
+  }
+}
