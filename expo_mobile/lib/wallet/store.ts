@@ -45,6 +45,7 @@ export function deductBalance(amount: number): { success: boolean; wallet: Walle
 
 export function addUserTransaction(tx: Transaction) {
   const wallet = getWallet();
+  if (wallet.transactions.some((t) => t.id === tx.id)) return;
   wallet.transactions.unshift(tx);
   saveWallet(wallet);
 }
@@ -92,6 +93,7 @@ export function setMerchantIdentity(pubKeyHex: string, cert: string) {
 
 export function addMerchantTransaction(tx: Transaction) {
   const merchant = getMerchant();
+  if (merchant.transactions.some((t) => t.id === tx.id)) return;
   merchant.transactions.unshift(tx);
   merchant.totalReceived += tx.amount;
   saveMerchant(merchant);
