@@ -1,9 +1,10 @@
-import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, ScrollView } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useState, useCallback } from 'react';
 import { useFocusEffect } from 'expo-router';
 import { getWallet } from '../../lib/wallet/store';
 import { formatCurrency } from '../../lib/utils';
+import { TNG } from '../../lib/theme';
 
 export default function UserHome() {
   const router = useRouter();
@@ -19,25 +20,37 @@ export default function UserHome() {
   );
 
   return (
-    <View style={styles.container}>
-      <View style={styles.card}>
-        <Text style={styles.label}>Available Balance</Text>
-        <Text style={styles.balance}>{formatCurrency(balance)}</Text>
-        <Text style={styles.userId}>ID: {userId}</Text>
+    <ScrollView style={styles.scroll} contentContainerStyle={styles.container}>
+      {/* Balance Card */}
+      <View style={styles.balanceCard}>
+        <View style={styles.balanceCardInner}>
+          <Text style={styles.balanceLabel}>eWallet Balance</Text>
+          <Text style={styles.balance}>{formatCurrency(balance)}</Text>
+          <View style={styles.divider} />
+          <Text style={styles.userId}>ID: {userId}</Text>
+        </View>
+        {/* Yellow accent strip */}
+        <View style={styles.yellowStrip} />
       </View>
 
+      {/* Quick Action */}
       <TouchableOpacity
         style={styles.payButton}
         onPress={() => router.push('/user/scan')}
+        activeOpacity={0.85}
       >
+        <View style={styles.payButtonIcon}>
+          <Text style={styles.payButtonIconText}>QR</Text>
+        </View>
         <Text style={styles.payButtonText}>Scan & Pay</Text>
       </TouchableOpacity>
 
-      <View style={styles.recentHeader}>
-        <Text style={styles.recentTitle}>Recent Transactions</Text>
+      {/* Recent Transactions */}
+      <View style={styles.section}>
+        <Text style={styles.sectionTitle}>Recent Transactions</Text>
+        <RecentTransactions />
       </View>
-      <RecentTransactions />
-    </View>
+    </ScrollView>
   );
 }
 
@@ -48,20 +61,25 @@ function RecentTransactions() {
   if (txns.length === 0) {
     return (
       <View style={styles.emptyContainer}>
+        <Text style={styles.emptyIcon}>—</Text>
         <Text style={styles.emptyText}>No transactions yet</Text>
+        <Text style={styles.emptySubtext}>Tap Scan & Pay to make your first payment</Text>
       </View>
     );
   }
 
   return (
-    <View>
+    <View style={styles.txList}>
       {txns.map((tx) => (
         <View key={tx.id} style={styles.txRow}>
-          <View>
-            <Text style={styles.txMerchant}>{tx.toMerchantId}</Text>
-            <Text style={styles.txDate}>
-              {new Date(tx.timestamp).toLocaleString()}
-            </Text>
+          <View style={styles.txIconWrap}>
+            <View style={styles.txIcon}>
+              <Text style={styles.txIconText}>↑</Text>
+            </View>
+          </View>
+          <View style={styles.txInfo}>
+            <Text style={styles.txMerchant} numberOfLines={1}>{tx.toMerchantId}</Text>
+            <Text style={styles.txDate}>{new Date(tx.timestamp).toLocaleString()}</Text>
           </View>
           <Text style={styles.txAmount}>-{formatCurrency(tx.amount)}</Text>
         </View>
@@ -71,81 +89,166 @@ function RecentTransactions() {
 }
 
 const styles = StyleSheet.create({
-  container: {
+  scroll: {
     flex: 1,
-    backgroundColor: '#16213e',
+    backgroundColor: TNG.bgSecondary,
+  },
+  container: {
     padding: 20,
+    paddingBottom: 40,
   },
-  card: {
-    backgroundColor: '#0f3460',
-    borderRadius: 16,
+  balanceCard: {
+    backgroundColor: TNG.blue,
+    borderRadius: TNG.radius.xl,
+    marginBottom: 20,
+    overflow: 'hidden',
+    shadowColor: TNG.shadow,
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 1,
+    shadowRadius: 16,
+    elevation: 6,
+  },
+  balanceCardInner: {
     padding: 24,
-    marginBottom: 24,
   },
-  label: {
-    fontSize: 14,
-    color: '#a0a0b0',
+  yellowStrip: {
+    height: 6,
+    backgroundColor: TNG.yellow,
+  },
+  balanceLabel: {
+    fontSize: TNG.font.sm,
+    color: 'rgba(255,255,255,0.75)',
+    fontWeight: '500',
+    textTransform: 'uppercase',
+    letterSpacing: 0.8,
   },
   balance: {
-    fontSize: 36,
-    fontWeight: 'bold',
-    color: '#fff',
+    fontSize: TNG.font['3xl'],
+    fontWeight: '800',
+    color: TNG.textWhite,
     marginTop: 8,
+    letterSpacing: -0.5,
+  },
+  divider: {
+    height: 1,
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    marginVertical: 14,
   },
   userId: {
-    fontSize: 12,
-    color: '#666',
-    marginTop: 8,
+    fontSize: TNG.font.xs,
+    color: 'rgba(255,255,255,0.55)',
+    fontFamily: 'monospace',
   },
   payButton: {
-    backgroundColor: '#e94560',
-    borderRadius: 12,
-    padding: 16,
+    backgroundColor: TNG.yellow,
+    borderRadius: TNG.radius.lg,
+    padding: 18,
+    flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
     marginBottom: 24,
+    gap: 12,
+    shadowColor: 'rgba(255,215,0,0.4)',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 1,
+    shadowRadius: 12,
+    elevation: 4,
+  },
+  payButtonIcon: {
+    backgroundColor: TNG.blue,
+    borderRadius: TNG.radius.sm,
+    width: 34,
+    height: 34,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  payButtonIconText: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: TNG.yellow,
+    letterSpacing: 0.5,
   },
   payButtonText: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#fff',
+    fontSize: TNG.font.md,
+    fontWeight: '700',
+    color: TNG.textOnYellow,
   },
-  recentHeader: {
-    marginBottom: 12,
+  section: {
+    gap: 12,
   },
-  recentTitle: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: '#fff',
+  sectionTitle: {
+    fontSize: TNG.font.base,
+    fontWeight: '700',
+    color: TNG.textPrimary,
+    marginBottom: 4,
   },
   emptyContainer: {
     alignItems: 'center',
-    padding: 20,
+    backgroundColor: TNG.bgCard,
+    borderRadius: TNG.radius.lg,
+    padding: 32,
+    borderWidth: 1,
+    borderColor: TNG.border,
+  },
+  emptyIcon: {
+    fontSize: 32,
+    color: TNG.textMuted,
+    marginBottom: 8,
   },
   emptyText: {
-    color: '#666',
-    fontSize: 14,
+    color: TNG.textPrimary,
+    fontSize: TNG.font.base,
+    fontWeight: '600',
+  },
+  emptySubtext: {
+    color: TNG.textMuted,
+    fontSize: TNG.font.sm,
+    marginTop: 4,
+    textAlign: 'center',
+  },
+  txList: {
+    gap: 8,
   },
   txRow: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
-    backgroundColor: '#0f3460',
-    borderRadius: 8,
-    padding: 12,
-    marginBottom: 8,
+    backgroundColor: TNG.bgCard,
+    borderRadius: TNG.radius.md,
+    padding: 14,
+    borderWidth: 1,
+    borderColor: TNG.border,
+    gap: 12,
+  },
+  txIconWrap: {},
+  txIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: TNG.radius.full,
+    backgroundColor: TNG.errorLight,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  txIconText: {
+    fontSize: 16,
+    color: TNG.error,
+    fontWeight: '700',
+  },
+  txInfo: {
+    flex: 1,
   },
   txMerchant: {
-    color: '#fff',
-    fontSize: 14,
+    color: TNG.textPrimary,
+    fontSize: TNG.font.base,
+    fontWeight: '600',
   },
   txDate: {
-    color: '#666',
-    fontSize: 11,
+    color: TNG.textMuted,
+    fontSize: TNG.font.xs,
     marginTop: 2,
   },
   txAmount: {
-    color: '#e94560',
-    fontSize: 16,
-    fontWeight: 'bold',
+    color: TNG.error,
+    fontSize: TNG.font.base,
+    fontWeight: '700',
   },
 });

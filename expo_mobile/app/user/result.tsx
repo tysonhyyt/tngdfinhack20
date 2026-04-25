@@ -1,6 +1,7 @@
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { formatCurrency } from '../../lib/utils';
+import { TNG } from '../../lib/theme';
 
 export default function ResultScreen() {
   const router = useRouter();
@@ -15,7 +16,9 @@ export default function ResultScreen() {
   return (
     <View style={styles.container}>
       <View style={styles.iconContainer}>
-        <Text style={styles.icon}>{isSuccess ? '✅' : '❌'}</Text>
+        <View style={[styles.icon, isSuccess ? styles.iconSuccess : styles.iconFail]}>
+          <Text style={styles.iconText}>{isSuccess ? '✓' : '✕'}</Text>
+        </View>
       </View>
 
       <Text style={[styles.title, !isSuccess && styles.failTitle]}>
@@ -24,21 +27,14 @@ export default function ResultScreen() {
 
       <Text style={styles.amount}>{formatCurrency(payAmount)}</Text>
 
-      {isSuccess && (
-        <Text style={styles.subtitle}>
-          Transaction recorded in your wallet
-        </Text>
-      )}
-
-      {!isSuccess && (
-        <Text style={styles.subtitle}>
-          Please try again
-        </Text>
-      )}
+      <Text style={styles.subtitle}>
+        {isSuccess ? 'Transaction recorded in your wallet' : 'Please try again'}
+      </Text>
 
       <TouchableOpacity
         style={styles.button}
         onPress={() => router.replace('/user')}
+        activeOpacity={0.85}
       >
         <Text style={styles.buttonText}>Back to Wallet</Text>
       </TouchableOpacity>
@@ -49,47 +45,63 @@ export default function ResultScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#16213e',
+    backgroundColor: TNG.bgSecondary,
     justifyContent: 'center',
     alignItems: 'center',
-    padding: 20,
+    padding: 24,
   },
   iconContainer: {
     marginBottom: 24,
   },
   icon: {
-    fontSize: 80,
+    width: 88,
+    height: 88,
+    borderRadius: TNG.radius.full,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  iconSuccess: {
+    backgroundColor: TNG.success,
+  },
+  iconFail: {
+    backgroundColor: TNG.error,
+  },
+  iconText: {
+    fontSize: 40,
+    color: TNG.textWhite,
+    fontWeight: '800',
   },
   title: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: '#4ade80',
-    marginBottom: 12,
-  },
-  failTitle: {
-    color: '#e94560',
-  },
-  amount: {
-    fontSize: 36,
-    fontWeight: 'bold',
-    color: '#fff',
+    fontSize: TNG.font.xl,
+    fontWeight: '800',
+    color: TNG.success,
     marginBottom: 8,
   },
+  failTitle: {
+    color: TNG.error,
+  },
+  amount: {
+    fontSize: TNG.font['3xl'],
+    fontWeight: '800',
+    color: TNG.textPrimary,
+    marginBottom: 12,
+  },
   subtitle: {
-    fontSize: 14,
-    color: '#a0a0b0',
-    marginBottom: 40,
+    fontSize: TNG.font.sm,
+    color: TNG.textMuted,
+    marginBottom: 48,
     textAlign: 'center',
+    lineHeight: 20,
   },
   button: {
-    backgroundColor: '#0f3460',
-    borderRadius: 12,
-    paddingVertical: 14,
-    paddingHorizontal: 40,
+    backgroundColor: TNG.yellow,
+    borderRadius: TNG.radius.lg,
+    paddingVertical: 16,
+    paddingHorizontal: 48,
   },
   buttonText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: 'bold',
+    color: TNG.textOnYellow,
+    fontSize: TNG.font.base,
+    fontWeight: '700',
   },
 });

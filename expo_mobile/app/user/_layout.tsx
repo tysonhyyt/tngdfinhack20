@@ -1,12 +1,14 @@
 import { Stack } from 'expo-router';
+import { TNG } from '../../lib/theme';
 
 export default function UserLayout() {
   return (
     <Stack
       screenOptions={{
-        headerStyle: { backgroundColor: '#0f3460' },
-        headerTintColor: '#fff',
-        contentStyle: { backgroundColor: '#16213e' },
+        headerStyle: { backgroundColor: TNG.blue },
+        headerTintColor: TNG.textWhite,
+        headerTitleStyle: { fontWeight: '700' },
+        contentStyle: { backgroundColor: TNG.bgSecondary },
       }}
     >
       <Stack.Screen name="index" options={{ title: 'My Wallet' }} />

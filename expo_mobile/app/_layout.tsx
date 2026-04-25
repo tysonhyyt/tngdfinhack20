@@ -3,6 +3,7 @@ import { StatusBar } from 'expo-status-bar';
 import { useEffect } from 'react';
 import { initIdentity } from '../lib/crypto/identity';
 import { getWallet, getMerchant, setWalletIdentity, setMerchantIdentity, deduplicateStorage } from '../lib/wallet/store';
+import { TNG } from '../lib/theme';
 
 export default function RootLayout() {
   useEffect(() => {
@@ -10,10 +11,8 @@ export default function RootLayout() {
       deduplicateStorage();
       const wallet = getWallet();
       const merchant = getMerchant();
-      // Init shared keypair for this device (one identity per device)
-      const deviceId = wallet.userId; // use userId as device id
+      const deviceId = wallet.userId;
       const identity = await initIdentity(deviceId);
-      // Persist pubkey + cert into both wallet and merchant stores
       if (!wallet.pubKeyHex) setWalletIdentity(identity.pubKeyHex, identity.cert);
       if (!merchant.pubKeyHex) setMerchantIdentity(identity.pubKeyHex, identity.cert);
     }
@@ -25,13 +24,13 @@ export default function RootLayout() {
       <StatusBar style="light" />
       <Stack
         screenOptions={{
-          headerStyle: { backgroundColor: '#1a1a2e' },
-          headerTintColor: '#fff',
-          headerTitleStyle: { fontWeight: 'bold' },
-          contentStyle: { backgroundColor: '#16213e' },
+          headerStyle: { backgroundColor: TNG.blue },
+          headerTintColor: TNG.textWhite,
+          headerTitleStyle: { fontWeight: '700', fontSize: 17 },
+          contentStyle: { backgroundColor: TNG.bgSecondary },
         }}
       >
-        <Stack.Screen name="index" options={{ title: 'BLE Pay' }} />
+        <Stack.Screen name="index" options={{ title: 'Touch \'n Go' }} />
         <Stack.Screen name="user" options={{ headerShown: false }} />
         <Stack.Screen name="merchant" options={{ headerShown: false }} />
       </Stack>

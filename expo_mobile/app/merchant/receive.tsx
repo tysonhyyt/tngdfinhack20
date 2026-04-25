@@ -6,6 +6,7 @@ import { CameraView, useCameraPermissions } from 'expo-camera';
 import { getMerchant, addMerchantTransaction, addToSyncQueue } from '../../lib/wallet/store';
 import { getIdentity, verifySignature, verifyCert, signPayload } from '../../lib/crypto/identity';
 import { formatCurrency, generateTransactionId } from '../../lib/utils';
+import { TNG } from '../../lib/theme';
 
 type Step = 'show_qr' | 'scan_receipt' | 'show_ack' | 'done';
 
@@ -20,7 +21,6 @@ export default function ReceiveScreen() {
 
   const merchant = getMerchant();
 
-  // Merchant QR: identity only, no amount
   const qrPayload = JSON.stringify({
     type: 'PAYMENT_REQUEST',
     merchantId: merchant.merchantId,
@@ -48,7 +48,6 @@ export default function ReceiveScreen() {
         return;
       }
 
-      // 1. Verify user cert is self-consistent
       const certCheck = verifyCert(receipt.cert);
       if (!certCheck.valid) {
         setVerifyError('Invalid user certificate');
@@ -56,7 +55,6 @@ export default function ReceiveScreen() {
         return;
       }
 
-      // 2. Verify tx signature
       const txPayload = {
         txId: receipt.txId,
         amount: receipt.amount,
@@ -72,7 +70,6 @@ export default function ReceiveScreen() {
         return;
       }
 
-      // 3. Record transaction
       const tx = {
         id: receipt.txId || generateTransactionId(),
         amount: receipt.amount,
@@ -89,7 +86,6 @@ export default function ReceiveScreen() {
       addMerchantTransaction(tx);
       addToSyncQueue({ txId: tx.id, side: 'merchant', tx, queuedAt: Date.now() });
 
-      // 4. Generate ACK QR — merchant signs the txId
       const identity = await getIdentity();
       let ackSig = '';
       if (identity) {
@@ -116,18 +112,26 @@ export default function ReceiveScreen() {
   if (step === 'show_qr') {
     return (
       <View style={styles.container}>
-        <Text style={styles.title}>Show to Payer</Text>
-        <Text style={styles.subtitle}>Payer will enter the amount</Text>
-        <View style={styles.qrContainer}>
-          <QRCode value={qrPayload} size={220} backgroundColor="#fff" color="#1a1a2e" />
+        <View style={styles.instructionBanner}>
+          <Text style={styles.instructionTitle}>Show to Payer</Text>
+          <Text style={styles.instructionSub}>Payer scans this to start payment</Text>
         </View>
-        <Text style={styles.merchantId}>{merchant.merchantName}</Text>
-        <Text style={styles.idLabel}>{merchant.merchantId}</Text>
-        <TouchableOpacity style={styles.mainButton} onPress={handleWaitForReceipt}>
-          <Text style={styles.mainButtonText}>Scan Receipt QR</Text>
+
+        <View style={styles.qrCard}>
+          <View style={styles.qrWrap}>
+            <QRCode value={qrPayload} size={200} backgroundColor="#fff" color={TNG.blue} />
+          </View>
+          <View style={styles.qrMeta}>
+            <Text style={styles.qrMerchantName}>{merchant.merchantName}</Text>
+            <Text style={styles.qrMerchantId}>{merchant.merchantId}</Text>
+          </View>
+        </View>
+
+        <TouchableOpacity style={styles.primaryButton} onPress={handleWaitForReceipt} activeOpacity={0.85}>
+          <Text style={styles.primaryButtonText}>Scan Receipt QR</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={styles.secondaryButton} onPress={() => router.back()}>
-          <Text style={styles.secondaryButtonText}>Cancel</Text>
+        <TouchableOpacity style={styles.ghostButton} onPress={() => router.back()}>
+          <Text style={styles.ghostButtonText}>Cancel</Text>
         </TouchableOpacity>
       </View>
     );
@@ -136,33 +140,40 @@ export default function ReceiveScreen() {
   // Step 2: Scan user's signed receipt QR
   if (step === 'scan_receipt') {
     if (!permission) {
-      return <View style={styles.container}><ActivityIndicator color="#e94560" size="large" /></View>;
+      return <View style={styles.container}><ActivityIndicator color={TNG.blue} size="large" /></View>;
     }
     if (!permission.granted) {
       return (
         <View style={styles.container}>
-          <Text style={styles.instruction}>Camera permission needed</Text>
-          <TouchableOpacity style={styles.mainButton} onPress={requestPermission}>
-            <Text style={styles.mainButtonText}>Grant Permission</Text>
+          <Text style={styles.instructionText}>Camera permission needed</Text>
+          <TouchableOpacity style={styles.primaryButton} onPress={requestPermission} activeOpacity={0.85}>
+            <Text style={styles.primaryButtonText}>Grant Permission</Text>
           </TouchableOpacity>
         </View>
       );
     }
     return (
-      <View style={styles.container}>
+      <View style={{ flex: 1, backgroundColor: TNG.textPrimary }}>
         <CameraView
           style={styles.camera}
           barcodeScannerSettings={{ barcodeTypes: ['qr'] }}
           onBarcodeScanned={scanned ? undefined : handleReceiptScanned}
         >
           <View style={styles.overlay}>
-            <View style={styles.scanFrame} />
-            <Text style={styles.scanText}>Scan Payer's Receipt QR</Text>
-            {verifyError ? <Text style={styles.errorText}>{verifyError}</Text> : null}
+            <Text style={styles.scanLabel}>Scan Payer's Receipt QR</Text>
+            <View style={styles.scanFrame}>
+              <View style={[styles.scanCorner, styles.scanCornerTL]} />
+              <View style={[styles.scanCorner, styles.scanCornerTR]} />
+              <View style={[styles.scanCorner, styles.scanCornerBL]} />
+              <View style={[styles.scanCorner, styles.scanCornerBR]} />
+            </View>
+            {verifyError ? (
+              <Text style={styles.errorText}>{verifyError}</Text>
+            ) : null}
           </View>
         </CameraView>
         <TouchableOpacity style={styles.backButton} onPress={() => setStep('show_qr')}>
-          <Text style={styles.secondaryButtonText}>Back</Text>
+          <Text style={styles.ghostButtonText}>Back</Text>
         </TouchableOpacity>
       </View>
     );
@@ -172,15 +183,23 @@ export default function ReceiveScreen() {
   if (step === 'show_ack') {
     return (
       <View style={styles.container}>
-        <Text style={styles.doneIcon}>✅</Text>
-        <Text style={styles.doneTitle}>Payment Verified!</Text>
-        <Text style={styles.amountDisplay}>{formatCurrency(receiptData?.amount || 0)}</Text>
-        <Text style={styles.instruction}>Show this ACK QR to payer</Text>
-        <View style={styles.qrContainer}>
-          <QRCode value={ackPayload} size={200} backgroundColor="#fff" color="#1a1a2e" />
+        <View style={styles.successBadge}>
+          <View style={styles.successIcon}>
+            <Text style={styles.successIconText}>✓</Text>
+          </View>
+          <Text style={styles.successTitle}>Payment Verified!</Text>
+          <Text style={styles.successAmount}>{formatCurrency(receiptData?.amount || 0)}</Text>
         </View>
-        <TouchableOpacity style={styles.mainButton} onPress={() => setStep('done')}>
-          <Text style={styles.mainButtonText}>Done</Text>
+
+        <View style={styles.qrCard}>
+          <Text style={styles.qrCardLabel}>Show ACK to payer</Text>
+          <View style={styles.qrWrap}>
+            <QRCode value={ackPayload} size={180} backgroundColor="#fff" color={TNG.blue} />
+          </View>
+        </View>
+
+        <TouchableOpacity style={styles.primaryButton} onPress={() => setStep('done')} activeOpacity={0.85}>
+          <Text style={styles.primaryButtonText}>Done</Text>
         </TouchableOpacity>
       </View>
     );
@@ -189,37 +208,195 @@ export default function ReceiveScreen() {
   // Step 4: Done
   return (
     <View style={styles.container}>
-      <Text style={styles.doneIcon}>💰</Text>
-      <Text style={styles.doneTitle}>Payment Received!</Text>
-      <Text style={styles.amountDisplay}>{formatCurrency(receiptData?.amount || 0)}</Text>
-      <Text style={styles.doneFrom}>From: {receiptData?.userId || 'User'}</Text>
-      <TouchableOpacity style={styles.mainButton} onPress={() => router.replace('/merchant')}>
-        <Text style={styles.mainButtonText}>Back to Dashboard</Text>
+      <View style={styles.successBadge}>
+        <View style={[styles.successIcon, styles.successIconLarge]}>
+          <Text style={[styles.successIconText, styles.successIconTextLarge]}>✓</Text>
+        </View>
+        <Text style={styles.successTitle}>Payment Received!</Text>
+        <Text style={styles.successAmount}>{formatCurrency(receiptData?.amount || 0)}</Text>
+        <Text style={styles.doneFrom}>From: {receiptData?.userId || 'User'}</Text>
+      </View>
+      <TouchableOpacity style={styles.primaryButton} onPress={() => router.replace('/merchant')} activeOpacity={0.85}>
+        <Text style={styles.primaryButtonText}>Back to Dashboard</Text>
       </TouchableOpacity>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#16213e', alignItems: 'center', justifyContent: 'center', padding: 20 },
-  title: { fontSize: 20, fontWeight: 'bold', color: '#fff', marginBottom: 8 },
-  subtitle: { fontSize: 14, color: '#a0a0b0', marginBottom: 24 },
-  qrContainer: { backgroundColor: '#fff', borderRadius: 16, padding: 20, marginBottom: 20 },
-  merchantId: { fontSize: 16, fontWeight: 'bold', color: '#fff', marginBottom: 4 },
-  idLabel: { fontSize: 11, color: '#666', marginBottom: 24 },
-  instruction: { fontSize: 14, color: '#a0a0b0', marginBottom: 20, textAlign: 'center' },
-  mainButton: { backgroundColor: '#e94560', borderRadius: 12, padding: 16, paddingHorizontal: 40, marginTop: 8 },
-  mainButtonText: { fontSize: 18, fontWeight: 'bold', color: '#fff' },
-  secondaryButton: { marginTop: 16 },
-  secondaryButtonText: { color: '#a0a0b0', fontSize: 14 },
-  camera: { flex: 1, width: '100%', borderRadius: 12 },
-  overlay: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: 'rgba(0,0,0,0.4)' },
-  scanFrame: { width: 250, height: 250, borderWidth: 2, borderColor: '#e94560', borderRadius: 12 },
-  scanText: { color: '#fff', fontSize: 16, marginTop: 20 },
-  errorText: { color: '#e94560', fontSize: 13, marginTop: 12, textAlign: 'center', paddingHorizontal: 20 },
-  backButton: { padding: 16 },
-  doneIcon: { fontSize: 80, marginBottom: 16 },
-  doneTitle: { fontSize: 24, fontWeight: 'bold', color: '#4ade80', marginBottom: 12 },
-  amountDisplay: { fontSize: 42, fontWeight: 'bold', color: '#fff', marginBottom: 8 },
-  doneFrom: { fontSize: 14, color: '#a0a0b0', marginBottom: 32 },
+  container: {
+    flex: 1,
+    backgroundColor: TNG.bgSecondary,
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 20,
+  },
+  instructionBanner: {
+    alignItems: 'center',
+    marginBottom: 24,
+  },
+  instructionTitle: {
+    fontSize: TNG.font.xl,
+    fontWeight: '700',
+    color: TNG.textPrimary,
+  },
+  instructionSub: {
+    fontSize: TNG.font.sm,
+    color: TNG.textMuted,
+    marginTop: 4,
+  },
+  instructionText: {
+    fontSize: TNG.font.base,
+    color: TNG.textSecondary,
+    marginBottom: 24,
+    textAlign: 'center',
+  },
+  qrCard: {
+    backgroundColor: TNG.bgCard,
+    borderRadius: TNG.radius.xl,
+    padding: 24,
+    alignItems: 'center',
+    width: '100%',
+    marginBottom: 20,
+    borderWidth: 1,
+    borderColor: TNG.border,
+  },
+  qrCardLabel: {
+    fontSize: TNG.font.sm,
+    color: TNG.textMuted,
+    marginBottom: 16,
+  },
+  qrWrap: {
+    borderRadius: TNG.radius.md,
+    overflow: 'hidden',
+  },
+  qrMeta: {
+    alignItems: 'center',
+    marginTop: 16,
+    paddingTop: 16,
+    borderTopWidth: 1,
+    borderTopColor: TNG.divider,
+    width: '100%',
+  },
+  qrMerchantName: {
+    fontSize: TNG.font.base,
+    fontWeight: '700',
+    color: TNG.textPrimary,
+  },
+  qrMerchantId: {
+    fontSize: TNG.font.xs,
+    color: TNG.textMuted,
+    marginTop: 4,
+    fontFamily: 'monospace',
+  },
+  primaryButton: {
+    backgroundColor: TNG.yellow,
+    borderRadius: TNG.radius.lg,
+    padding: 18,
+    width: '100%',
+    alignItems: 'center',
+    marginBottom: 4,
+  },
+  primaryButtonText: {
+    fontSize: TNG.font.md,
+    fontWeight: '700',
+    color: TNG.textOnYellow,
+  },
+  ghostButton: {
+    padding: 16,
+  },
+  ghostButtonText: {
+    color: TNG.textSecondary,
+    fontSize: TNG.font.sm,
+    fontWeight: '500',
+  },
+  camera: {
+    flex: 1,
+    width: '100%',
+  },
+  overlay: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    gap: 20,
+  },
+  scanLabel: {
+    color: TNG.textWhite,
+    fontSize: TNG.font.base,
+    fontWeight: '600',
+  },
+  scanFrame: {
+    width: 240,
+    height: 240,
+    position: 'relative',
+  },
+  scanCorner: {
+    position: 'absolute',
+    width: 28,
+    height: 28,
+    borderColor: TNG.yellow,
+    borderWidth: 3,
+  },
+  scanCornerTL: { top: 0, left: 0, borderRightWidth: 0, borderBottomWidth: 0, borderTopLeftRadius: 4 },
+  scanCornerTR: { top: 0, right: 0, borderLeftWidth: 0, borderBottomWidth: 0, borderTopRightRadius: 4 },
+  scanCornerBL: { bottom: 0, left: 0, borderRightWidth: 0, borderTopWidth: 0, borderBottomLeftRadius: 4 },
+  scanCornerBR: { bottom: 0, right: 0, borderLeftWidth: 0, borderTopWidth: 0, borderBottomRightRadius: 4 },
+  errorText: {
+    color: TNG.yellow,
+    fontSize: TNG.font.sm,
+    textAlign: 'center',
+    paddingHorizontal: 20,
+    backgroundColor: 'rgba(229,57,53,0.8)',
+    padding: 8,
+    borderRadius: TNG.radius.sm,
+  },
+  backButton: {
+    backgroundColor: TNG.bgSecondary,
+    padding: 16,
+    alignItems: 'center',
+  },
+  successBadge: {
+    alignItems: 'center',
+    marginBottom: 24,
+  },
+  successIcon: {
+    width: 64,
+    height: 64,
+    borderRadius: TNG.radius.full,
+    backgroundColor: TNG.success,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 12,
+  },
+  successIconLarge: {
+    width: 88,
+    height: 88,
+    marginBottom: 16,
+  },
+  successIconText: {
+    fontSize: 28,
+    color: TNG.textWhite,
+    fontWeight: '800',
+  },
+  successIconTextLarge: {
+    fontSize: 40,
+  },
+  successTitle: {
+    fontSize: TNG.font.xl,
+    fontWeight: '700',
+    color: TNG.textPrimary,
+    marginBottom: 4,
+  },
+  successAmount: {
+    fontSize: TNG.font['2xl'],
+    fontWeight: '800',
+    color: TNG.blue,
+    marginTop: 4,
+  },
+  doneFrom: {
+    fontSize: TNG.font.sm,
+    color: TNG.textMuted,
+    marginTop: 8,
+  },
 });

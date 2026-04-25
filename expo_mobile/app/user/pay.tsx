@@ -6,6 +6,7 @@ import { CameraView, useCameraPermissions } from 'expo-camera';
 import { getWallet, deductBalance, addUserTransaction, addToSyncQueue } from '../../lib/wallet/store';
 import { getIdentity, signPayload, verifySignature, verifyCert } from '../../lib/crypto/identity';
 import { formatCurrency, generateTransactionId } from '../../lib/utils';
+import { TNG } from '../../lib/theme';
 
 type Step = 'enter_amount' | 'confirm' | 'receipt' | 'scan_ack' | 'done';
 
@@ -98,7 +99,6 @@ export default function PayScreen() {
         return;
       }
 
-      // Verify merchant's ACK signature
       if (ack.ackSignature && ack.merchantPubKey) {
         const valid = verifySignature(
           { txId: ack.txId, merchantId: ack.merchantId },
@@ -123,38 +123,47 @@ export default function PayScreen() {
   if (step === 'enter_amount') {
     return (
       <View style={styles.container}>
-        <View style={styles.merchantInfo}>
-          <Text style={styles.merchantLabel}>Paying to</Text>
-          <Text style={styles.merchantName}>{merchantName || 'Merchant'}</Text>
+        <View style={styles.merchantBadge}>
+          <View style={styles.merchantBadgeIcon}>
+            <Text style={styles.merchantBadgeIconText}>#</Text>
+          </View>
+          <View>
+            <Text style={styles.merchantLabel}>Paying to</Text>
+            <Text style={styles.merchantName}>{merchantName || 'Merchant'}</Text>
+          </View>
         </View>
-        <View style={styles.amountSection}>
-          <Text style={styles.currency}>RM</Text>
+
+        <View style={styles.amountCard}>
+          <Text style={styles.amountCurrency}>RM</Text>
           <TextInput
             style={styles.amountInput}
             keyboardType="decimal-pad"
             placeholder="0.00"
-            placeholderTextColor="#666"
+            placeholderTextColor={TNG.textMuted}
             value={amount}
             onChangeText={setAmount}
             autoFocus
           />
         </View>
+
         <View style={styles.quickAmounts}>
           {[5, 10, 20, 50].map((q) => (
-            <TouchableOpacity key={q} style={styles.quickBtn} onPress={() => setAmount(q.toString())}>
+            <TouchableOpacity key={q} style={styles.quickBtn} onPress={() => setAmount(q.toString())} activeOpacity={0.75}>
               <Text style={styles.quickBtnText}>RM{q}</Text>
             </TouchableOpacity>
           ))}
         </View>
+
         <TouchableOpacity
-          style={[styles.payButton, payAmount <= 0 && styles.buttonDisabled]}
+          style={[styles.primaryButton, payAmount <= 0 && styles.buttonDisabled]}
           onPress={() => setStep('confirm')}
           disabled={payAmount <= 0}
+          activeOpacity={0.85}
         >
-          <Text style={styles.payButtonText}>Next</Text>
+          <Text style={styles.primaryButtonText}>Next</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={styles.cancelButton} onPress={() => router.back()}>
-          <Text style={styles.cancelText}>Cancel</Text>
+        <TouchableOpacity style={styles.ghostButton} onPress={() => router.back()}>
+          <Text style={styles.ghostButtonText}>Cancel</Text>
         </TouchableOpacity>
       </View>
     );
@@ -165,40 +174,64 @@ export default function PayScreen() {
     const insufficient = payAmount > wallet.balance;
     return (
       <View style={styles.container}>
-        <View style={styles.merchantInfo}>
-          <Text style={styles.merchantLabel}>Paying to</Text>
-          <Text style={styles.merchantName}>{merchantName || 'Merchant'}</Text>
+        <View style={styles.merchantBadge}>
+          <View style={styles.merchantBadgeIcon}>
+            <Text style={styles.merchantBadgeIconText}>#</Text>
+          </View>
+          <View>
+            <Text style={styles.merchantLabel}>Paying to</Text>
+            <Text style={styles.merchantName}>{merchantName || 'Merchant'}</Text>
+          </View>
         </View>
-        <Text style={styles.amountDisplay}>{formatCurrency(payAmount)}</Text>
-        <Text style={styles.balanceText}>Balance: {formatCurrency(wallet.balance)}</Text>
-        {insufficient && <Text style={styles.errorText}>Insufficient balance</Text>}
+
+        <View style={styles.confirmCard}>
+          <Text style={styles.confirmLabel}>Amount</Text>
+          <Text style={styles.amountDisplay}>{formatCurrency(payAmount)}</Text>
+          <Text style={styles.balanceText}>Balance: {formatCurrency(wallet.balance)}</Text>
+        </View>
+
+        {insufficient && (
+          <View style={styles.errorBanner}>
+            <Text style={styles.errorBannerText}>Insufficient balance</Text>
+          </View>
+        )}
+
         <TouchableOpacity
-          style={[styles.payButton, (insufficient || payAmount <= 0) && styles.buttonDisabled]}
+          style={[styles.primaryButton, (insufficient || payAmount <= 0) && styles.buttonDisabled]}
           onPress={handleConfirmPay}
           disabled={insufficient || payAmount <= 0}
+          activeOpacity={0.85}
         >
-          <Text style={styles.payButtonText}>Confirm & Pay</Text>
+          <Text style={styles.primaryButtonText}>Confirm & Pay</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={styles.cancelButton} onPress={() => setStep('enter_amount')}>
-          <Text style={styles.cancelText}>Back</Text>
+        <TouchableOpacity style={styles.ghostButton} onPress={() => setStep('enter_amount')}>
+          <Text style={styles.ghostButtonText}>Back</Text>
         </TouchableOpacity>
       </View>
     );
   }
 
-  // Step 3: Show signed receipt QR for merchant to scan
+  // Step 3: Show signed receipt QR
   if (step === 'receipt') {
     return (
       <View style={styles.container}>
-        <Text style={styles.doneIcon}>✅</Text>
-        <Text style={styles.doneTitle}>Payment Sent!</Text>
-        <Text style={styles.amountDisplay}>{formatCurrency(payAmount)}</Text>
-        <View style={styles.qrContainer}>
-          <QRCode value={receiptPayload} size={220} backgroundColor="#fff" color="#1a1a2e" />
+        <View style={styles.successBadge}>
+          <View style={styles.successIcon}>
+            <Text style={styles.successIconText}>✓</Text>
+          </View>
+          <Text style={styles.successTitle}>Payment Sent!</Text>
+          <Text style={styles.successAmount}>{formatCurrency(payAmount)}</Text>
         </View>
-        <Text style={styles.instruction}>Show this to merchant to scan</Text>
-        <TouchableOpacity style={styles.payButton} onPress={() => { setScanned(false); setStep('scan_ack'); }}>
-          <Text style={styles.payButtonText}>Scan Merchant ACK</Text>
+
+        <View style={styles.qrCard}>
+          <Text style={styles.qrLabel}>Show to merchant</Text>
+          <View style={styles.qrWrap}>
+            <QRCode value={receiptPayload} size={200} backgroundColor="#fff" color={TNG.blue} />
+          </View>
+        </View>
+
+        <TouchableOpacity style={styles.primaryButton} onPress={() => { setScanned(false); setStep('scan_ack'); }} activeOpacity={0.85}>
+          <Text style={styles.primaryButtonText}>Scan Merchant ACK</Text>
         </TouchableOpacity>
       </View>
     );
@@ -206,32 +239,37 @@ export default function PayScreen() {
 
   // Step 4: Scan merchant ACK QR
   if (step === 'scan_ack') {
-    if (!permission) return <View style={styles.container}><ActivityIndicator color="#e94560" size="large" /></View>;
+    if (!permission) return <View style={styles.container}><ActivityIndicator color={TNG.blue} size="large" /></View>;
     if (!permission.granted) {
       return (
         <View style={styles.container}>
-          <Text style={styles.instruction}>Camera permission needed</Text>
-          <TouchableOpacity style={styles.payButton} onPress={requestPermission}>
-            <Text style={styles.payButtonText}>Grant Permission</Text>
+          <Text style={styles.instructionText}>Camera permission needed</Text>
+          <TouchableOpacity style={styles.primaryButton} onPress={requestPermission} activeOpacity={0.85}>
+            <Text style={styles.primaryButtonText}>Grant Permission</Text>
           </TouchableOpacity>
         </View>
       );
     }
     return (
-      <View style={styles.container}>
+      <View style={{ flex: 1, backgroundColor: TNG.textPrimary }}>
         <CameraView
           style={styles.camera}
           barcodeScannerSettings={{ barcodeTypes: ['qr'] }}
           onBarcodeScanned={scanned ? undefined : handleAckScanned}
         >
           <View style={styles.overlay}>
-            <View style={styles.scanFrame} />
-            <Text style={styles.scanText}>Scan Merchant's ACK QR</Text>
+            <Text style={styles.scanLabel}>Scan Merchant's ACK QR</Text>
+            <View style={styles.scanFrame}>
+              <View style={[styles.scanCorner, styles.scanCornerTL]} />
+              <View style={[styles.scanCorner, styles.scanCornerTR]} />
+              <View style={[styles.scanCorner, styles.scanCornerBL]} />
+              <View style={[styles.scanCorner, styles.scanCornerBR]} />
+            </View>
             {ackError ? <Text style={styles.errorText}>{ackError}</Text> : null}
           </View>
         </CameraView>
         <TouchableOpacity style={styles.skipButton} onPress={() => setStep('done')}>
-          <Text style={styles.cancelText}>Skip (demo)</Text>
+          <Text style={styles.skipButtonText}>Skip (demo)</Text>
         </TouchableOpacity>
       </View>
     );
@@ -240,46 +278,302 @@ export default function PayScreen() {
   // Step 5: Done
   return (
     <View style={styles.container}>
-      <Text style={styles.doneIcon}>🎉</Text>
-      <Text style={styles.doneTitle}>Complete!</Text>
-      <Text style={styles.amountDisplay}>{formatCurrency(payAmount)}</Text>
-      <Text style={styles.balanceText}>New balance: {formatCurrency(wallet.balance)}</Text>
+      <View style={styles.doneCard}>
+        <View style={[styles.successIcon, styles.successIconLarge]}>
+          <Text style={[styles.successIconText, styles.successIconTextLarge]}>✓</Text>
+        </View>
+        <Text style={styles.doneTitle}>Complete!</Text>
+        <Text style={styles.doneAmount}>{formatCurrency(payAmount)}</Text>
+        <Text style={styles.doneBalance}>New balance: {formatCurrency(wallet.balance)}</Text>
+      </View>
       <TouchableOpacity
-        style={styles.payButton}
+        style={styles.primaryButton}
         onPress={() => router.replace({ pathname: '/user/result', params: { success: 'true', amount: payAmount.toString() } })}
+        activeOpacity={0.85}
       >
-        <Text style={styles.payButtonText}>Done</Text>
+        <Text style={styles.primaryButtonText}>Done</Text>
       </TouchableOpacity>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#16213e', padding: 20, alignItems: 'center', justifyContent: 'center' },
-  merchantInfo: { alignItems: 'center', marginBottom: 24 },
-  merchantLabel: { fontSize: 14, color: '#a0a0b0' },
-  merchantName: { fontSize: 20, fontWeight: 'bold', color: '#fff', marginTop: 4 },
-  amountSection: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', marginBottom: 8 },
-  currency: { fontSize: 28, color: '#a0a0b0', marginRight: 8 },
-  amountInput: { fontSize: 48, fontWeight: 'bold', color: '#fff', minWidth: 120, textAlign: 'center' },
-  amountDisplay: { fontSize: 42, fontWeight: 'bold', color: '#fff', marginBottom: 8 },
-  quickAmounts: { flexDirection: 'row', justifyContent: 'center', gap: 12, marginBottom: 32 },
-  quickBtn: { backgroundColor: '#0f3460', borderRadius: 8, paddingVertical: 8, paddingHorizontal: 16 },
-  quickBtnText: { color: '#fff', fontSize: 14 },
-  balanceText: { textAlign: 'center', color: '#666', fontSize: 14, marginBottom: 32 },
-  errorText: { color: '#e94560', fontSize: 14, marginBottom: 16 },
-  payButton: { backgroundColor: '#e94560', borderRadius: 12, padding: 16, paddingHorizontal: 60 },
-  payButtonText: { fontSize: 18, fontWeight: 'bold', color: '#fff' },
-  buttonDisabled: { opacity: 0.4 },
-  cancelButton: { marginTop: 16 },
-  cancelText: { color: '#a0a0b0', fontSize: 14 },
-  doneIcon: { fontSize: 60, marginBottom: 12 },
-  doneTitle: { fontSize: 24, fontWeight: 'bold', color: '#4ade80', marginBottom: 8 },
-  qrContainer: { backgroundColor: '#fff', borderRadius: 16, padding: 20, marginVertical: 20 },
-  instruction: { fontSize: 14, color: '#a0a0b0', marginBottom: 24, textAlign: 'center' },
-  camera: { flex: 1, width: '100%' },
-  overlay: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: 'rgba(0,0,0,0.4)' },
-  scanFrame: { width: 250, height: 250, borderWidth: 2, borderColor: '#e94560', borderRadius: 12 },
-  scanText: { color: '#fff', fontSize: 16, marginTop: 20 },
-  skipButton: { padding: 16 },
+  container: {
+    flex: 1,
+    backgroundColor: TNG.bgSecondary,
+    padding: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  merchantBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    backgroundColor: TNG.bgCard,
+    borderRadius: TNG.radius.lg,
+    padding: 16,
+    width: '100%',
+    marginBottom: 24,
+    borderWidth: 1,
+    borderColor: TNG.border,
+  },
+  merchantBadgeIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: TNG.radius.sm,
+    backgroundColor: TNG.blue,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  merchantBadgeIconText: {
+    fontSize: 18,
+    fontWeight: '800',
+    color: TNG.yellow,
+  },
+  merchantLabel: {
+    fontSize: TNG.font.xs,
+    color: TNG.textMuted,
+    textTransform: 'uppercase',
+    letterSpacing: 0.6,
+  },
+  merchantName: {
+    fontSize: TNG.font.base,
+    fontWeight: '700',
+    color: TNG.textPrimary,
+    marginTop: 2,
+  },
+  amountCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 24,
+    gap: 8,
+  },
+  amountCurrency: {
+    fontSize: TNG.font.xl,
+    color: TNG.textSecondary,
+    fontWeight: '500',
+  },
+  amountInput: {
+    fontSize: 52,
+    fontWeight: '800',
+    color: TNG.textPrimary,
+    minWidth: 120,
+    textAlign: 'center',
+  },
+  quickAmounts: {
+    flexDirection: 'row',
+    gap: 10,
+    marginBottom: 32,
+  },
+  quickBtn: {
+    backgroundColor: TNG.bgCard,
+    borderRadius: TNG.radius.sm,
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    borderWidth: 1.5,
+    borderColor: TNG.blue,
+  },
+  quickBtnText: {
+    color: TNG.blue,
+    fontSize: TNG.font.sm,
+    fontWeight: '600',
+  },
+  confirmCard: {
+    backgroundColor: TNG.bgCard,
+    borderRadius: TNG.radius.xl,
+    padding: 24,
+    alignItems: 'center',
+    width: '100%',
+    marginBottom: 20,
+    borderWidth: 1,
+    borderColor: TNG.border,
+  },
+  confirmLabel: {
+    fontSize: TNG.font.sm,
+    color: TNG.textMuted,
+    textTransform: 'uppercase',
+    letterSpacing: 0.8,
+    marginBottom: 8,
+  },
+  amountDisplay: {
+    fontSize: TNG.font['3xl'],
+    fontWeight: '800',
+    color: TNG.textPrimary,
+  },
+  balanceText: {
+    fontSize: TNG.font.sm,
+    color: TNG.textMuted,
+    marginTop: 10,
+  },
+  errorBanner: {
+    backgroundColor: TNG.errorLight,
+    borderRadius: TNG.radius.sm,
+    paddingVertical: 10,
+    paddingHorizontal: 20,
+    marginBottom: 16,
+    borderLeftWidth: 3,
+    borderLeftColor: TNG.error,
+  },
+  errorBannerText: {
+    color: TNG.error,
+    fontSize: TNG.font.sm,
+    fontWeight: '600',
+  },
+  primaryButton: {
+    backgroundColor: TNG.yellow,
+    borderRadius: TNG.radius.lg,
+    padding: 18,
+    width: '100%',
+    alignItems: 'center',
+    marginBottom: 4,
+  },
+  primaryButtonText: {
+    fontSize: TNG.font.md,
+    fontWeight: '700',
+    color: TNG.textOnYellow,
+  },
+  buttonDisabled: {
+    opacity: 0.4,
+  },
+  ghostButton: {
+    padding: 16,
+  },
+  ghostButtonText: {
+    color: TNG.textSecondary,
+    fontSize: TNG.font.sm,
+    fontWeight: '500',
+  },
+  successBadge: {
+    alignItems: 'center',
+    marginBottom: 24,
+  },
+  successIcon: {
+    width: 56,
+    height: 56,
+    borderRadius: TNG.radius.full,
+    backgroundColor: TNG.success,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 12,
+  },
+  successIconLarge: {
+    width: 80,
+    height: 80,
+    marginBottom: 16,
+  },
+  successIconText: {
+    fontSize: 24,
+    color: TNG.textWhite,
+    fontWeight: '800',
+  },
+  successIconTextLarge: {
+    fontSize: 36,
+  },
+  successTitle: {
+    fontSize: TNG.font.xl,
+    fontWeight: '700',
+    color: TNG.textPrimary,
+  },
+  successAmount: {
+    fontSize: TNG.font['2xl'],
+    fontWeight: '800',
+    color: TNG.blue,
+    marginTop: 4,
+  },
+  qrCard: {
+    backgroundColor: TNG.bgCard,
+    borderRadius: TNG.radius.xl,
+    padding: 24,
+    alignItems: 'center',
+    width: '100%',
+    marginBottom: 20,
+    borderWidth: 1,
+    borderColor: TNG.border,
+  },
+  qrLabel: {
+    fontSize: TNG.font.sm,
+    color: TNG.textMuted,
+    marginBottom: 16,
+  },
+  qrWrap: {
+    borderRadius: TNG.radius.md,
+    overflow: 'hidden',
+  },
+  instructionText: {
+    fontSize: TNG.font.base,
+    color: TNG.textSecondary,
+    marginBottom: 24,
+    textAlign: 'center',
+  },
+  camera: {
+    flex: 1,
+    width: '100%',
+  },
+  overlay: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    gap: 20,
+  },
+  scanLabel: {
+    color: TNG.textWhite,
+    fontSize: TNG.font.base,
+    fontWeight: '600',
+  },
+  scanFrame: {
+    width: 240,
+    height: 240,
+    position: 'relative',
+  },
+  scanCorner: {
+    position: 'absolute',
+    width: 28,
+    height: 28,
+    borderColor: TNG.yellow,
+    borderWidth: 3,
+  },
+  scanCornerTL: { top: 0, left: 0, borderRightWidth: 0, borderBottomWidth: 0, borderTopLeftRadius: 4 },
+  scanCornerTR: { top: 0, right: 0, borderLeftWidth: 0, borderBottomWidth: 0, borderTopRightRadius: 4 },
+  scanCornerBL: { bottom: 0, left: 0, borderRightWidth: 0, borderTopWidth: 0, borderBottomLeftRadius: 4 },
+  scanCornerBR: { bottom: 0, right: 0, borderLeftWidth: 0, borderTopWidth: 0, borderBottomRightRadius: 4 },
+  errorText: {
+    color: TNG.yellow,
+    fontSize: TNG.font.sm,
+    textAlign: 'center',
+    paddingHorizontal: 20,
+    backgroundColor: 'rgba(229,57,53,0.8)',
+    padding: 8,
+    borderRadius: TNG.radius.sm,
+  },
+  skipButton: {
+    backgroundColor: TNG.bgSecondary,
+    padding: 16,
+    alignItems: 'center',
+  },
+  skipButtonText: {
+    color: TNG.textSecondary,
+    fontSize: TNG.font.sm,
+  },
+  doneCard: {
+    alignItems: 'center',
+    marginBottom: 32,
+  },
+  doneTitle: {
+    fontSize: TNG.font.xl,
+    fontWeight: '700',
+    color: TNG.textPrimary,
+    marginBottom: 8,
+  },
+  doneAmount: {
+    fontSize: TNG.font['3xl'],
+    fontWeight: '800',
+    color: TNG.blue,
+    marginBottom: 8,
+  },
+  doneBalance: {
+    fontSize: TNG.font.sm,
+    color: TNG.textMuted,
+  },
 });
