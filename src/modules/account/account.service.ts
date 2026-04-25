@@ -1,7 +1,7 @@
 import { dbPool } from '../../infrastructure/db.service';
 
 interface AccountRow {
-  account_id: string;
+  account_id?: string;
   user_id: string;
   device_id: string;
   role: string;
@@ -23,6 +23,33 @@ interface TransactionRow {
 export interface AccountWithTransactions {
   account: AccountRow;
   transactions: TransactionRow[];
+}
+
+export interface AccountLookupResult {
+  account: AccountRow;
+  displayName: string;
+  status: string;
+  merchantName?: string;
+}
+
+function normalizeDisplayName(deviceId: string, role: string): string {
+  if (role === 'merchant') {
+    return deviceId;
+  }
+
+  if (deviceId.startsWith('user-')) {
+    return `User ${deviceId.slice(5)}`;
+  }
+
+  return `User ${deviceId}`;
+}
+
+function normalizeMerchantName(deviceId: string): string {
+  if (deviceId.startsWith('merchant-')) {
+    return `Store ${deviceId.slice(9)}`;
+  }
+
+  return `Store ${deviceId}`;
 }
 
 export async function findAccountByDeviceIdAndRole(
@@ -48,5 +75,45 @@ export async function findAccountByDeviceIdAndRole(
   return {
     account,
     transactions: Array.isArray(transactionRows) ? (transactionRows as TransactionRow[]) : [],
+  };
+}
+
+export async function findOrCreateAccountByDeviceIdAndRole(
+  deviceId: string,
+  role: string
+): Promise<AccountLookupResult> {
+  const existing = await findAccountByDeviceIdAndRole(deviceId, role);
+
+  if (existing) {
+    const displayName = normalizeDisplayName(existing.account.device_id, existing.account.role);
+    const merchantName = existing.account.role === 'merchant' ? normalizeMerchantName(existing.account.device_id) : undefined;
+
+    return {
+      account: existing.account,
+      displayName,
+      status: 'active',
+      merchantName,
+    };
+  }
+
+  const offlineBalance = role === 'merchant' ? 0 : 1000;
+  const currency = 'USD';
+
+  await dbPool.query(
+    'INSERT INTO account (user_id, device_id, role, offline_balance, currency) VALUES (?, ?, ?, ?, ?)',
+    [deviceId, deviceId, role, offlineBalance, currency]
+  );
+
+  return {
+    account: {
+      user_id: deviceId,
+      device_id: deviceId,
+      role,
+      offline_balance: offlineBalance,
+      currency,
+    },
+    displayName: normalizeDisplayName(deviceId, role),
+    status: 'active',
+    merchantName: role === 'merchant' ? normalizeMerchantName(deviceId) : undefined,
   };
 }

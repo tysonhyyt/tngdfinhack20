@@ -1,7 +1,65 @@
 import { Router, Request, Response } from 'express';
-import { findAccountByDeviceIdAndRole } from './account.service';
+import {
+  findAccountByDeviceIdAndRole,
+  findOrCreateAccountByDeviceIdAndRole,
+} from './account.service';
 
 export const accountRouter = Router();
+
+function respondJson(res: Response, payload: unknown) {
+  if (
+    payload === undefined ||
+    payload === null ||
+    (typeof payload === 'object' &&
+      !Array.isArray(payload) &&
+      Object.keys(payload as object).length === 0)
+  ) {
+    return res.json({});
+  }
+  return res.json(payload);
+}
+
+accountRouter.post('/', async (req: Request, res: Response) => {
+  const deviceId = typeof req.body.deviceId === 'string' ? req.body.deviceId.trim() : '';
+  const role = typeof req.body.role === 'string' ? req.body.role.trim() : '';
+
+  if (!deviceId || !role) {
+    return res.status(400).json({
+      success: false,
+      error: {
+        code: 'INVALID_PAYLOAD',
+        message: 'Both deviceId and role are required in the JSON body.',
+      },
+    });
+  }
+
+  try {
+    const account = await findOrCreateAccountByDeviceIdAndRole(deviceId, role);
+
+    const responseBody: Record<string, unknown> = {
+      success: true,
+      userId: account.account.user_id,
+      displayName: account.displayName,
+      offlineBalance: Number(account.account.offline_balance),
+      status: account.status,
+    };
+
+    if (account.merchantName) {
+      responseBody.merchantName = account.merchantName;
+    }
+
+    return respondJson(res, responseBody);
+  } catch (error) {
+    console.error('Create or fetch account error:', error);
+    return res.status(500).json({
+      success: false,
+      error: {
+        code: 'INTERNAL_ERROR',
+        message: 'Failed to create or fetch account.',
+      },
+    });
+  }
+});
 
 accountRouter.get('/', async (req: Request, res: Response) => {
   const deviceId = typeof req.query.deviceId === 'string' ? req.query.deviceId.trim() : '';
@@ -30,7 +88,7 @@ accountRouter.get('/', async (req: Request, res: Response) => {
       });
     }
 
-    return res.json({
+    return respondJson(res, {
       success: true,
       deviceId: result.account.device_id,
       userId: result.account.user_id,
