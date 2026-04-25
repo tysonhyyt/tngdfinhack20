@@ -1,5 +1,6 @@
 import "dotenv/config";
 import express from "express";
+import { accountRouter } from "./modules/account/account.controller";
 import { transactionRouter } from "./modules/transaction/transaction.controller";
 import { kafkaProducer } from "./infrastructure/kafka.service";
 import { connectDatabase, dbPool } from "./infrastructure/db.service";
@@ -9,6 +10,7 @@ const port = process.env.PORT || 3000;
 
 // Middleware
 app.use(express.json());
+app.use("/account", accountRouter);
 
 // Routes
 app.use("/api/transactions", transactionRouter);
