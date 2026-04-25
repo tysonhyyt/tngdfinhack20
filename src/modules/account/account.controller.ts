@@ -5,6 +5,7 @@ import {
 } from './account.service';
 
 export const accountRouter = Router();
+export const sessionRouter = Router();
 
 function respondJson(res: Response, payload: unknown) {
   if (
@@ -19,7 +20,7 @@ function respondJson(res: Response, payload: unknown) {
   return res.json(payload);
 }
 
-accountRouter.post('/', async (req: Request, res: Response) => {
+sessionRouter.get('/init', async (req: Request, res: Response) => {
   const deviceId = typeof req.body.deviceId === 'string' ? req.body.deviceId.trim() : '';
   const role = typeof req.body.role === 'string' ? req.body.role.trim() : '';
 

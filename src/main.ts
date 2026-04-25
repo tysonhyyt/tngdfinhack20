@@ -1,15 +1,12 @@
 import "dotenv/config";
 import express from "express";
-import { accountRouter } from "./modules/account/account.controller";
-import {
-  transactionRouter,
-  transactionSyncRouter,
-} from "./modules/transaction/transaction.controller";
+import { accountRouter, sessionRouter } from "./modules/account/account.controller";
+import { transactionSyncRouter } from "./modules/transaction/transaction.controller";
 import {
   KafkaConsumerService,
   kafkaProducer,
 } from "./infrastructure/kafka.service";
-import { connectDatabase, dbPool } from "./infrastructure/db.service";
+import { connectDatabase } from "./infrastructure/db.service";
 
 const kafkaConsumer = new KafkaConsumerService();
 
@@ -18,27 +15,15 @@ const port = process.env.PORT || 3000;
 
 // Middleware
 app.use(express.json());
-app.use("/account", accountRouter);
 
 // Routes
-app.use("/api/transactions", transactionRouter);
+app.use("/session", sessionRouter);
+app.use("/account", accountRouter);
 app.use("/sync", transactionSyncRouter);
 
 // Health check
 app.get("/health", (req, res) => {
   res.status(200).json({ status: "ok", timestamp: new Date().toISOString() });
-});
-
-// DB connectivity test
-app.get("/api/db-test", async (req, res) => {
-  try {
-    const [rows] = await dbPool.query("SELECT NOW() AS now");
-    const nowValue =
-      Array.isArray(rows) && rows.length > 0 ? (rows[0] as any).now : null;
-    res.json({ success: true, now: nowValue });
-  } catch (error) {
-    res.status(500).json({ success: false, error: (error as Error).message });
-  }
 });
 
 let server: ReturnType<typeof app.listen>;
