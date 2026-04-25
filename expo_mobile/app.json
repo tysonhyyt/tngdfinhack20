@@ -55,7 +55,8 @@
         {
           "cameraPermission": "Allow BLE Pay to use the camera to scan QR codes"
         }
-      ]
+      ],
+      "./plugins/withBlePeripheral"
     ],
     "extra": {
       "router": {},
