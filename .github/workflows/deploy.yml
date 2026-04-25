@@ -6,16 +6,22 @@
 # PREREQUISITES:
 #   1. Create an ECR repository in your AWS account.
 #   2. Create an ECS cluster, service, and task definition.
-#   3. Store the following secrets in your GitHub repository settings
-#      (Settings → Secrets and variables → Actions → New repository secret):
+#   3. GitHub Actions → Settings → Secrets and variables → Actions
+#      Add repository (or environment "production") secrets used at deploy time:
 #
-#      - AWS_OIDC_ROLE_ARN       : IAM role ARN for GitHub OIDC
-#      - AWS_REGION              : e.g. ap-southeast-5
-#      - ECR_REPOSITORY          : ECR repository name (e.g. my-app)
-#      - ECS_CLUSTER             : ECS cluster name
-#      - ECS_SERVICE             : ECS service name
-#      - ECS_TASK_DEFINITION     : Path to task-definition JSON (e.g. .aws/task-definition.json)
-#      - ECS_CONTAINER_NAME      : Container name inside the task definition
+#      KAFKA_BOOTSTRAP_SERVERS
+#      KAFKA_CLIENT_ID
+#      KAFKA_SSL
+#      KAFKA_SSL_REJECT_UNAUTHORIZED
+#      KAFKA_SASL_MECHANISM
+#      KAFKA_SASL_USERNAME
+#      KAFKA_SASL_PASSWORD
+#      KAFKA_TOPIC
+#      KAFKA_CONSUMER_GROUP
+#      KAFKAJS_NO_PARTITIONER_WARNING
+#
+#      These are injected into the ECS task definition by the render step below.
+#      (Optional) Use GitHub Environment secrets for the "production" environment.
 #
 # =============================================================================
 
@@ -200,6 +206,18 @@ jobs:
           task-definition: ${{ env.ECS_TASK_DEFINITION }}
           container-name: ${{ env.ECS_CONTAINER_NAME }}
           image: ${{ needs.dockerize-and-push.outputs.image }}
+          environment-variables: |
+            PORT=3000
+            KAFKA_BOOTSTRAP_SERVERS=${{ secrets.KAFKA_BOOTSTRAP_SERVERS }}
+            KAFKA_CLIENT_ID=${{ secrets.KAFKA_CLIENT_ID }}
+            KAFKA_SSL=${{ secrets.KAFKA_SSL }}
+            KAFKA_SSL_REJECT_UNAUTHORIZED=${{ secrets.KAFKA_SSL_REJECT_UNAUTHORIZED }}
+            KAFKA_SASL_MECHANISM=${{ secrets.KAFKA_SASL_MECHANISM }}
+            KAFKA_SASL_USERNAME=${{ secrets.KAFKA_SASL_USERNAME }}
+            KAFKA_SASL_PASSWORD=${{ secrets.KAFKA_SASL_PASSWORD }}
+            KAFKA_TOPIC=${{ secrets.KAFKA_TOPIC }}
+            KAFKA_CONSUMER_GROUP=${{ secrets.KAFKA_CONSUMER_GROUP }}
+            KAFKAJS_NO_PARTITIONER_WARNING=${{ secrets.KAFKAJS_NO_PARTITIONER_WARNING }}
 
       - name: 🚀 Deploy to Amazon ECS
         uses: aws-actions/amazon-ecs-deploy-task-definition@v2
