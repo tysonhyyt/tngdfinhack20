@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "BLE Pay",
+    "name": "QR Pay",
     "slug": "ble-pay",
     "version": "1.0.0",
     "orientation": "portrait",
@@ -14,11 +14,7 @@
       "backgroundColor": "#1a1a2e"
     },
     "ios": {
-      "supportsTablet": true,
-      "infoPlist": {
-        "NSBluetoothAlwaysUsageDescription": "This app uses Bluetooth to send and receive payments",
-        "NSBluetoothPeripheralUsageDescription": "This app uses Bluetooth to send and receive payments"
-      }
+      "supportsTablet": true
     },
     "android": {
       "adaptiveIcon": {
@@ -27,14 +23,7 @@
       },
       "edgeToEdgeEnabled": true,
       "permissions": [
-        "android.permission.BLUETOOTH",
-        "android.permission.BLUETOOTH_ADMIN",
-        "android.permission.BLUETOOTH_CONNECT",
-        "android.permission.BLUETOOTH_SCAN",
-        "android.permission.BLUETOOTH_ADVERTISE",
-        "android.permission.ACCESS_FINE_LOCATION",
-        "android.permission.CAMERA",
-        "android.permission.RECORD_AUDIO"
+        "android.permission.CAMERA"
       ],
       "package": "com.blepay.app"
     },
@@ -44,19 +33,11 @@
     "plugins": [
       "expo-router",
       [
-        "react-native-ble-plx",
-        {
-          "isBackgroundEnabled": false,
-          "neverForLocation": false
-        }
-      ],
-      [
         "expo-camera",
         {
-          "cameraPermission": "Allow BLE Pay to use the camera to scan QR codes"
+          "cameraPermission": "Allow QR Pay to use the camera to scan QR codes"
         }
-      ],
-      "./plugins/withBlePeripheral"
+      ]
     ],
     "extra": {
       "router": {},

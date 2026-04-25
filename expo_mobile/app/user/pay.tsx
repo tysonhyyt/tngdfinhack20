@@ -1,223 +1,127 @@
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, ActivityIndicator } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, StyleSheet } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
-import { connectToMerchant, sendPayment, disconnectFromMerchant, CentralStatus } from '../../lib/ble/central';
+import QRCode from 'react-native-qrcode-svg';
 import { getWallet, deductBalance, addUserTransaction } from '../../lib/wallet/store';
 import { formatCurrency, generateTransactionId } from '../../lib/utils';
-import { PaymentAck } from '../../lib/ble/protocol';
+
+type Step = 'confirm' | 'receipt';
 
 export default function PayScreen() {
   const router = useRouter();
-  const { deviceId, merchantId, merchantName } = useLocalSearchParams<{
-    deviceId: string;
+  const { merchantId, merchantName, amount: requestedAmount } = useLocalSearchParams<{
     merchantId: string;
     merchantName: string;
+    amount: string;
   }>();
 
-  const [amount, setAmount] = useState('');
-  const [status, setStatus] = useState<CentralStatus>('idle');
-  const [statusMsg, setStatusMsg] = useState('');
-  const [processing, setProcessing] = useState(false);
+  const [step, setStep] = useState<Step>('confirm');
+  const [txId, setTxId] = useState('');
   const wallet = getWallet();
+  const payAmount = parseFloat(requestedAmount || '0');
 
-  const handlePay = async () => {
-    const payAmount = parseFloat(amount);
-    if (!payAmount || payAmount <= 0) return;
-    if (payAmount > wallet.balance) {
-      setStatusMsg('Insufficient balance');
-      return;
-    }
+  const handleConfirmPay = () => {
+    if (payAmount <= 0) return;
+    if (payAmount > wallet.balance) return;
 
-    setProcessing(true);
-
-    const callbacks = {
-      onStatusChange: (s: CentralStatus, msg?: string) => {
-        setStatus(s);
-        setStatusMsg(msg || '');
-      },
-      onAckReceived: (_ack: PaymentAck) => {},
-      onComplete: (success: boolean) => {
-        if (success) {
-          const { success: deducted } = deductBalance(payAmount);
-          if (deducted) {
-            addUserTransaction({
-              id: generateTransactionId(),
-              amount: payAmount,
-              currency: 'MYR',
-              timestamp: Date.now(),
-              fromUserId: wallet.userId,
-              toMerchantId: merchantId || 'unknown',
-              status: 'completed',
-            });
-          }
-          disconnectFromMerchant();
-          router.replace({
-            pathname: '/user/result',
-            params: { success: 'true', amount: payAmount.toString() },
-          });
-        } else {
-          setProcessing(false);
-          router.replace({
-            pathname: '/user/result',
-            params: { success: 'false', amount: payAmount.toString() },
-          });
-        }
-      },
-    };
-
-    // Connect then send
-    const device = await connectToMerchant(deviceId!, callbacks);
-    if (device) {
-      await sendPayment(payAmount, wallet.userId, callbacks);
+    const id = generateTransactionId();
+    const { success } = deductBalance(payAmount);
+    if (success) {
+      addUserTransaction({
+        id,
+        amount: payAmount,
+        currency: 'MYR',
+        timestamp: Date.now(),
+        fromUserId: wallet.userId,
+        toMerchantId: merchantId || 'unknown',
+        status: 'completed',
+      });
+      setTxId(id);
+      setStep('receipt');
     }
   };
 
+  // Receipt QR payload — merchant scans this to confirm
+  const receiptPayload = JSON.stringify({
+    type: 'PAYMENT_RECEIPT',
+    status: 'CONFIRMED',
+    txId,
+    amount: payAmount,
+    currency: 'MYR',
+    userId: wallet.userId,
+    merchantId,
+    timestamp: Date.now(),
+  });
+
+  // Step 1: Confirm payment
+  if (step === 'confirm') {
+    const insufficient = payAmount > wallet.balance;
+    return (
+      <View style={styles.container}>
+        <View style={styles.merchantInfo}>
+          <Text style={styles.merchantLabel}>Paying to</Text>
+          <Text style={styles.merchantName}>{merchantName || 'Merchant'}</Text>
+        </View>
+
+        <Text style={styles.amountDisplay}>{formatCurrency(payAmount)}</Text>
+        <Text style={styles.balanceText}>Balance: {formatCurrency(wallet.balance)}</Text>
+
+        {insufficient && <Text style={styles.errorText}>Insufficient balance</Text>}
+
+        <TouchableOpacity
+          style={[styles.payButton, insufficient && styles.buttonDisabled]}
+          onPress={handleConfirmPay}
+          disabled={insufficient || payAmount <= 0}
+        >
+          <Text style={styles.payButtonText}>Confirm & Pay</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity style={styles.cancelButton} onPress={() => router.back()}>
+          <Text style={styles.cancelText}>Cancel</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
+
+  // Step 2: Show receipt QR for merchant to scan
   return (
     <View style={styles.container}>
-      <View style={styles.merchantInfo}>
-        <Text style={styles.merchantLabel}>Paying to</Text>
-        <Text style={styles.merchantName}>{merchantName || 'Merchant'}</Text>
+      <Text style={styles.doneIcon}>✅</Text>
+      <Text style={styles.doneTitle}>Payment Sent!</Text>
+      <Text style={styles.amountDisplay}>{formatCurrency(payAmount)}</Text>
+
+      <View style={styles.qrContainer}>
+        <QRCode value={receiptPayload} size={220} backgroundColor="#fff" color="#1a1a2e" />
       </View>
-
-      <View style={styles.amountSection}>
-        <Text style={styles.currency}>RM</Text>
-        <TextInput
-          style={styles.amountInput}
-          keyboardType="decimal-pad"
-          placeholder="0.00"
-          placeholderTextColor="#666"
-          value={amount}
-          onChangeText={setAmount}
-          editable={!processing}
-          autoFocus
-        />
-      </View>
-
-      <Text style={styles.balanceText}>
-        Balance: {formatCurrency(wallet.balance)}
-      </Text>
-
-      {/* Quick amounts */}
-      <View style={styles.quickAmounts}>
-        {[5, 10, 20, 50].map((q) => (
-          <TouchableOpacity
-            key={q}
-            style={styles.quickBtn}
-            onPress={() => setAmount(q.toString())}
-            disabled={processing}
-          >
-            <Text style={styles.quickBtnText}>RM{q}</Text>
-          </TouchableOpacity>
-        ))}
-      </View>
-
-      {statusMsg ? (
-        <View style={styles.statusContainer}>
-          {processing && <ActivityIndicator color="#e94560" />}
-          <Text style={styles.statusText}>{statusMsg}</Text>
-        </View>
-      ) : null}
+      <Text style={styles.instruction}>Show this to merchant to complete</Text>
 
       <TouchableOpacity
-        style={[styles.payButton, processing && styles.payButtonDisabled]}
-        onPress={handlePay}
-        disabled={processing || !amount}
+        style={styles.doneButton}
+        onPress={() => router.replace({ pathname: '/user/result', params: { success: 'true', amount: payAmount.toString() } })}
       >
-        <Text style={styles.payButtonText}>
-          {processing ? 'Processing...' : `Pay ${amount ? formatCurrency(parseFloat(amount) || 0) : ''}`}
-        </Text>
+        <Text style={styles.doneButtonText}>Done</Text>
       </TouchableOpacity>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#16213e',
-    padding: 20,
-  },
-  merchantInfo: {
-    alignItems: 'center',
-    marginBottom: 32,
-  },
-  merchantLabel: {
-    fontSize: 14,
-    color: '#a0a0b0',
-  },
-  merchantName: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: '#fff',
-    marginTop: 4,
-  },
-  amountSection: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 8,
-  },
-  currency: {
-    fontSize: 28,
-    color: '#a0a0b0',
-    marginRight: 8,
-  },
-  amountInput: {
-    fontSize: 48,
-    fontWeight: 'bold',
-    color: '#fff',
-    minWidth: 120,
-    textAlign: 'center',
-  },
-  balanceText: {
-    textAlign: 'center',
-    color: '#666',
-    fontSize: 14,
-    marginBottom: 24,
-  },
-  quickAmounts: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    gap: 12,
-    marginBottom: 32,
-  },
-  quickBtn: {
-    backgroundColor: '#0f3460',
-    borderRadius: 8,
-    paddingVertical: 8,
-    paddingHorizontal: 16,
-  },
-  quickBtnText: {
-    color: '#fff',
-    fontSize: 14,
-  },
-  statusContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    marginBottom: 16,
-  },
-  statusText: {
-    color: '#a0a0b0',
-    fontSize: 14,
-  },
-  payButton: {
-    backgroundColor: '#e94560',
-    borderRadius: 12,
-    padding: 16,
-    alignItems: 'center',
-    position: 'absolute',
-    bottom: 40,
-    left: 20,
-    right: 20,
-  },
-  payButtonDisabled: {
-    opacity: 0.6,
-  },
-  payButtonText: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#fff',
-  },
+  container: { flex: 1, backgroundColor: '#16213e', padding: 20, alignItems: 'center', justifyContent: 'center' },
+  merchantInfo: { alignItems: 'center', marginBottom: 24 },
+  merchantLabel: { fontSize: 14, color: '#a0a0b0' },
+  merchantName: { fontSize: 20, fontWeight: 'bold', color: '#fff', marginTop: 4 },
+  amountDisplay: { fontSize: 42, fontWeight: 'bold', color: '#fff', marginBottom: 8 },
+  balanceText: { textAlign: 'center', color: '#666', fontSize: 14, marginBottom: 32 },
+  errorText: { color: '#e94560', fontSize: 14, marginBottom: 16 },
+  payButton: { backgroundColor: '#e94560', borderRadius: 12, padding: 16, paddingHorizontal: 60 },
+  payButtonText: { fontSize: 18, fontWeight: 'bold', color: '#fff' },
+  buttonDisabled: { opacity: 0.4 },
+  cancelButton: { marginTop: 16 },
+  cancelText: { color: '#a0a0b0', fontSize: 14 },
+  doneIcon: { fontSize: 60, marginBottom: 12 },
+  doneTitle: { fontSize: 24, fontWeight: 'bold', color: '#4ade80', marginBottom: 8 },
+  qrContainer: { backgroundColor: '#fff', borderRadius: 16, padding: 20, marginVertical: 20 },
+  instruction: { fontSize: 14, color: '#a0a0b0', marginBottom: 24, textAlign: 'center' },
+  doneButton: { backgroundColor: '#0f3460', borderRadius: 12, padding: 14, paddingHorizontal: 60 },
+  doneButtonText: { fontSize: 16, fontWeight: 'bold', color: '#fff' },
 });

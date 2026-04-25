@@ -1,8 +1,7 @@
-import { View, Text, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { useRouter } from 'expo-router';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { useState } from 'react';
-import { TouchableOpacity } from 'react-native';
 
 export default function ScanQR() {
   const router = useRouter();
@@ -29,26 +28,22 @@ export default function ScanQR() {
     setScanned(true);
 
     try {
-      // QR contains: { deviceId, merchantId, serviceUUID }
       const qrData = JSON.parse(data);
-      router.push({
-        pathname: '/user/pay',
-        params: {
-          deviceId: qrData.deviceId,
-          merchantId: qrData.merchantId,
-          merchantName: qrData.merchantName || 'Merchant',
-        },
-      });
+      if (qrData.type === 'PAYMENT_REQUEST') {
+        // QR from merchant — go to pay screen with amount
+        router.push({
+          pathname: '/user/pay',
+          params: {
+            merchantId: qrData.merchantId,
+            merchantName: qrData.merchantName || 'Merchant',
+            amount: String(qrData.amount || 0),
+          },
+        });
+      } else {
+        setScanned(false); // Not a valid payment QR, retry
+      }
     } catch {
-      // If not valid JSON, try raw device ID
-      router.push({
-        pathname: '/user/pay',
-        params: {
-          deviceId: data,
-          merchantId: 'unknown',
-          merchantName: 'Merchant',
-        },
-      });
+      setScanned(false);
     }
   };
 
@@ -69,48 +64,12 @@ export default function ScanQR() {
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#16213e',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  camera: {
-    flex: 1,
-    width: '100%',
-  },
-  overlay: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: 'rgba(0,0,0,0.4)',
-  },
-  scanFrame: {
-    width: 250,
-    height: 250,
-    borderWidth: 2,
-    borderColor: '#e94560',
-    borderRadius: 12,
-  },
-  scanText: {
-    color: '#fff',
-    fontSize: 16,
-    marginTop: 20,
-  },
-  text: {
-    color: '#fff',
-    fontSize: 16,
-    textAlign: 'center',
-    padding: 20,
-  },
-  button: {
-    backgroundColor: '#e94560',
-    borderRadius: 8,
-    padding: 12,
-    marginTop: 16,
-  },
-  buttonText: {
-    color: '#fff',
-    fontWeight: 'bold',
-  },
+  container: { flex: 1, backgroundColor: '#16213e', justifyContent: 'center', alignItems: 'center' },
+  camera: { flex: 1, width: '100%' },
+  overlay: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: 'rgba(0,0,0,0.4)' },
+  scanFrame: { width: 250, height: 250, borderWidth: 2, borderColor: '#e94560', borderRadius: 12 },
+  scanText: { color: '#fff', fontSize: 16, marginTop: 20 },
+  text: { color: '#fff', fontSize: 16, textAlign: 'center', padding: 20 },
+  button: { backgroundColor: '#e94560', borderRadius: 8, padding: 12, marginTop: 16 },
+  buttonText: { color: '#fff', fontWeight: 'bold' },
 });

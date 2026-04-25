@@ -1,179 +1,191 @@
-import { View, Text, StyleSheet, ActivityIndicator } from 'react-native';
-import { useEffect, useState } from 'react';
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, ActivityIndicator } from 'react-native';
+import { useState } from 'react';
+import { useRouter } from 'expo-router';
 import QRCode from 'react-native-qrcode-svg';
-import { startPeripheral, stopPeripheral, PeripheralStatus } from '../../lib/ble/peripheral';
+import { CameraView, useCameraPermissions } from 'expo-camera';
 import { getMerchant, addMerchantTransaction } from '../../lib/wallet/store';
-import { PaymentRequest, PaymentConfirm } from '../../lib/ble/protocol';
-import { generateTransactionId, formatCurrency } from '../../lib/utils';
-import { BLE_SERVICE_UUID } from '../../lib/ble/constants';
+import { formatCurrency, generateTransactionId } from '../../lib/utils';
+
+type Step = 'enter_amount' | 'show_qr' | 'scan_receipt' | 'done';
 
 export default function ReceiveScreen() {
-  const [status, setStatus] = useState<PeripheralStatus>('idle');
-  const [statusMsg, setStatusMsg] = useState('Starting BLE...');
-  const [lastPayment, setLastPayment] = useState<PaymentRequest | null>(null);
-  const [qrData, setQrData] = useState('');
+  const router = useRouter();
+  const [step, setStep] = useState<Step>('enter_amount');
+  const [amount, setAmount] = useState('');
+  const [receiptData, setReceiptData] = useState<any>(null);
+  const [scanned, setScanned] = useState(false);
+  const [permission, requestPermission] = useCameraPermissions();
   const merchant = getMerchant();
 
-  useEffect(() => {
-    // Generate QR data with merchant info
-    const data = JSON.stringify({
-      deviceId: 'ble-peripheral', // Will be actual device ID on real device
-      merchantId: merchant.merchantId,
-      merchantName: merchant.merchantName,
-      serviceUUID: BLE_SERVICE_UUID,
-    });
-    setQrData(data);
+  const payAmount = parseFloat(amount) || 0;
 
-    // Start BLE peripheral
-    startPeripheral(merchant.merchantId, {
-      onStatusChange: (s: PeripheralStatus, msg?: string) => {
-        setStatus(s);
-        setStatusMsg(msg || '');
-      },
-      onPaymentRequest: (request: PaymentRequest) => {
-        setLastPayment(request);
-      },
-      onPaymentConfirmed: (confirm: PaymentConfirm) => {
-        if (confirm.status === 'CONFIRMED' && lastPayment) {
-          addMerchantTransaction({
-            id: generateTransactionId(),
-            amount: lastPayment.amount,
-            currency: lastPayment.currency,
-            timestamp: Date.now(),
-            fromUserId: lastPayment.userId,
-            toMerchantId: merchant.merchantId,
-            status: 'completed',
-          });
-        }
-      },
-    });
+  // QR payload merchant shows to user
+  const qrPayload = JSON.stringify({
+    type: 'PAYMENT_REQUEST',
+    merchantId: merchant.merchantId,
+    merchantName: merchant.merchantName,
+    amount: payAmount,
+    currency: 'MYR',
+    timestamp: Date.now(),
+  });
 
-    return () => {
-      stopPeripheral();
-    };
-  }, []);
+  const handleGenerateQR = () => {
+    if (payAmount <= 0) return;
+    setStep('show_qr');
+  };
 
-  const isWaiting = status === 'advertising' || status === 'idle';
-  const isReceived = status === 'confirmed' || status === 'payment_received' || status === 'ack_sent';
+  const handleWaitForReceipt = () => {
+    setScanned(false);
+    setStep('scan_receipt');
+  };
 
+  const handleReceiptScanned = ({ data }: { data: string }) => {
+    if (scanned) return;
+    setScanned(true);
+    try {
+      const receipt = JSON.parse(data);
+      if (receipt.type === 'PAYMENT_RECEIPT' && receipt.status === 'CONFIRMED') {
+        setReceiptData(receipt);
+        addMerchantTransaction({
+          id: receipt.txId || generateTransactionId(),
+          amount: receipt.amount,
+          currency: receipt.currency || 'MYR',
+          timestamp: Date.now(),
+          fromUserId: receipt.userId || 'unknown',
+          toMerchantId: merchant.merchantId,
+          status: 'completed',
+        });
+        setStep('done');
+      } else {
+        setScanned(false); // Let them try again
+      }
+    } catch {
+      setScanned(false);
+    }
+  };
+
+  // Step 1: Enter amount
+  if (step === 'enter_amount') {
+    return (
+      <View style={styles.container}>
+        <Text style={styles.title}>Receive Payment</Text>
+        <View style={styles.amountSection}>
+          <Text style={styles.currency}>RM</Text>
+          <TextInput
+            style={styles.amountInput}
+            keyboardType="decimal-pad"
+            placeholder="0.00"
+            placeholderTextColor="#666"
+            value={amount}
+            onChangeText={setAmount}
+            autoFocus
+          />
+        </View>
+        <View style={styles.quickAmounts}>
+          {[5, 10, 20, 50].map((q) => (
+            <TouchableOpacity key={q} style={styles.quickBtn} onPress={() => setAmount(q.toString())}>
+              <Text style={styles.quickBtnText}>RM{q}</Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+        <TouchableOpacity
+          style={[styles.mainButton, payAmount <= 0 && styles.buttonDisabled]}
+          onPress={handleGenerateQR}
+          disabled={payAmount <= 0}
+        >
+          <Text style={styles.mainButtonText}>Generate QR Code</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
+
+  // Step 2: Show QR for user to scan
+  if (step === 'show_qr') {
+    return (
+      <View style={styles.container}>
+        <Text style={styles.title}>Show to Payer</Text>
+        <Text style={styles.amountDisplay}>{formatCurrency(payAmount)}</Text>
+        <View style={styles.qrContainer}>
+          <QRCode value={qrPayload} size={220} backgroundColor="#fff" color="#1a1a2e" />
+        </View>
+        <Text style={styles.instruction}>Ask payer to scan this QR code</Text>
+        <TouchableOpacity style={styles.mainButton} onPress={handleWaitForReceipt}>
+          <Text style={styles.mainButtonText}>Scan Receipt QR</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={styles.secondaryButton} onPress={() => setStep('enter_amount')}>
+          <Text style={styles.secondaryButtonText}>Cancel</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
+
+  // Step 3: Scan receipt QR from user
+  if (step === 'scan_receipt') {
+    if (!permission) {
+      return <View style={styles.container}><ActivityIndicator color="#e94560" size="large" /></View>;
+    }
+    if (!permission.granted) {
+      return (
+        <View style={styles.container}>
+          <Text style={styles.instruction}>Camera permission needed</Text>
+          <TouchableOpacity style={styles.mainButton} onPress={requestPermission}>
+            <Text style={styles.mainButtonText}>Grant Permission</Text>
+          </TouchableOpacity>
+        </View>
+      );
+    }
+    return (
+      <View style={styles.container}>
+        <CameraView
+          style={styles.camera}
+          barcodeScannerSettings={{ barcodeTypes: ['qr'] }}
+          onBarcodeScanned={scanned ? undefined : handleReceiptScanned}
+        >
+          <View style={styles.overlay}>
+            <View style={styles.scanFrame} />
+            <Text style={styles.scanText}>Scan Payer's Receipt QR</Text>
+          </View>
+        </CameraView>
+      </View>
+    );
+  }
+
+  // Step 4: Done
   return (
     <View style={styles.container}>
-      {isWaiting && (
-        <>
-          <View style={styles.qrContainer}>
-            {qrData ? (
-              <QRCode
-                value={qrData}
-                size={220}
-                backgroundColor="#fff"
-                color="#1a1a2e"
-              />
-            ) : (
-              <ActivityIndicator size="large" color="#e94560" />
-            )}
-          </View>
-          <Text style={styles.instruction}>
-            Show this QR code to the payer
-          </Text>
-          <View style={styles.statusRow}>
-            <ActivityIndicator color="#e94560" size="small" />
-            <Text style={styles.statusText}>{statusMsg}</Text>
-          </View>
-        </>
-      )}
-
-      {isReceived && lastPayment && (
-        <View style={styles.receivedContainer}>
-          <Text style={styles.receivedIcon}>✅</Text>
-          <Text style={styles.receivedTitle}>Payment Received!</Text>
-          <Text style={styles.receivedAmount}>
-            {formatCurrency(lastPayment.amount)}
-          </Text>
-          <Text style={styles.receivedFrom}>
-            From: {lastPayment.userId}
-          </Text>
-          <Text style={styles.receivedTime}>
-            {new Date(lastPayment.timestamp).toLocaleString()}
-          </Text>
-        </View>
-      )}
-
-      {status === 'error' && (
-        <View style={styles.errorContainer}>
-          <Text style={styles.errorIcon}>❌</Text>
-          <Text style={styles.errorText}>{statusMsg}</Text>
-        </View>
-      )}
+      <Text style={styles.doneIcon}>✅</Text>
+      <Text style={styles.doneTitle}>Payment Received!</Text>
+      <Text style={styles.amountDisplay}>{formatCurrency(receiptData?.amount || payAmount)}</Text>
+      <Text style={styles.doneFrom}>From: {receiptData?.userId || 'User'}</Text>
+      <TouchableOpacity style={styles.mainButton} onPress={() => router.replace('/merchant')}>
+        <Text style={styles.mainButtonText}>Back to Dashboard</Text>
+      </TouchableOpacity>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#16213e',
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: 20,
-  },
-  qrContainer: {
-    backgroundColor: '#fff',
-    borderRadius: 16,
-    padding: 20,
-    marginBottom: 24,
-  },
-  instruction: {
-    fontSize: 16,
-    color: '#fff',
-    marginBottom: 24,
-  },
-  statusRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  statusText: {
-    color: '#a0a0b0',
-    fontSize: 14,
-  },
-  receivedContainer: {
-    alignItems: 'center',
-  },
-  receivedIcon: {
-    fontSize: 80,
-    marginBottom: 16,
-  },
-  receivedTitle: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: '#4ade80',
-    marginBottom: 12,
-  },
-  receivedAmount: {
-    fontSize: 42,
-    fontWeight: 'bold',
-    color: '#fff',
-    marginBottom: 8,
-  },
-  receivedFrom: {
-    fontSize: 14,
-    color: '#a0a0b0',
-    marginBottom: 4,
-  },
-  receivedTime: {
-    fontSize: 12,
-    color: '#666',
-  },
-  errorContainer: {
-    alignItems: 'center',
-  },
-  errorIcon: {
-    fontSize: 60,
-    marginBottom: 16,
-  },
-  errorText: {
-    fontSize: 16,
-    color: '#e94560',
-    textAlign: 'center',
-  },
+  container: { flex: 1, backgroundColor: '#16213e', alignItems: 'center', justifyContent: 'center', padding: 20 },
+  title: { fontSize: 20, fontWeight: 'bold', color: '#fff', marginBottom: 24 },
+  amountSection: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', marginBottom: 8 },
+  currency: { fontSize: 28, color: '#a0a0b0', marginRight: 8 },
+  amountInput: { fontSize: 48, fontWeight: 'bold', color: '#fff', minWidth: 120, textAlign: 'center' },
+  amountDisplay: { fontSize: 42, fontWeight: 'bold', color: '#fff', marginBottom: 20 },
+  quickAmounts: { flexDirection: 'row', justifyContent: 'center', gap: 12, marginBottom: 32 },
+  quickBtn: { backgroundColor: '#0f3460', borderRadius: 8, paddingVertical: 8, paddingHorizontal: 16 },
+  quickBtnText: { color: '#fff', fontSize: 14 },
+  qrContainer: { backgroundColor: '#fff', borderRadius: 16, padding: 20, marginBottom: 24 },
+  instruction: { fontSize: 16, color: '#a0a0b0', marginBottom: 24, textAlign: 'center' },
+  mainButton: { backgroundColor: '#e94560', borderRadius: 12, padding: 16, paddingHorizontal: 40, marginTop: 8 },
+  mainButtonText: { fontSize: 18, fontWeight: 'bold', color: '#fff' },
+  buttonDisabled: { opacity: 0.4 },
+  secondaryButton: { marginTop: 16 },
+  secondaryButtonText: { color: '#a0a0b0', fontSize: 14 },
+  camera: { flex: 1, width: '100%', borderRadius: 12 },
+  overlay: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: 'rgba(0,0,0,0.4)' },
+  scanFrame: { width: 250, height: 250, borderWidth: 2, borderColor: '#e94560', borderRadius: 12 },
+  scanText: { color: '#fff', fontSize: 16, marginTop: 20 },
+  doneIcon: { fontSize: 80, marginBottom: 16 },
+  doneTitle: { fontSize: 24, fontWeight: 'bold', color: '#4ade80', marginBottom: 12 },
+  doneFrom: { fontSize: 14, color: '#a0a0b0', marginBottom: 32 },
 });

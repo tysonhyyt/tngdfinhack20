@@ -32,7 +32,7 @@ export default function ResultScreen() {
 
       {!isSuccess && (
         <Text style={styles.subtitle}>
-          Please try again or check BLE connection
+          Please try again
         </Text>
       )}
 
