@@ -23,9 +23,11 @@ name: Build, Push to ECR & Deploy to ECS
 
 on:
   push:
-    branches: [main]
+    branches:
+      - '**'
   pull_request:
-    branches: [main]
+    branches:
+      - '**'
 
 env:
   AWS_REGION: 'ap-southeast-5'
@@ -130,7 +132,7 @@ jobs:
     name: 🐳 Dockerize & Push to ECR
     runs-on: ubuntu-latest
     needs: build                     # Only runs after build succeeds
-    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    if: github.event_name == 'push'
     outputs:
       image: ${{ steps.build-image.outputs.image }}
 
