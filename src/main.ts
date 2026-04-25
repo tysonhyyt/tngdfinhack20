@@ -1,9 +1,17 @@
 import "dotenv/config";
 import express from "express";
 import { accountRouter } from "./modules/account/account.controller";
-import { transactionRouter, transactionSyncRouter } from "./modules/transaction/transaction.controller";
-import { kafkaProducer } from "./infrastructure/kafka.service";
+import {
+  transactionRouter,
+  transactionSyncRouter,
+} from "./modules/transaction/transaction.controller";
+import {
+  KafkaConsumerService,
+  kafkaProducer,
+} from "./infrastructure/kafka.service";
 import { connectDatabase, dbPool } from "./infrastructure/db.service";
+
+const kafkaConsumer = new KafkaConsumerService();
 
 const app = express();
 const port = process.env.PORT || 3000;
@@ -22,10 +30,11 @@ app.get("/health", (req, res) => {
 });
 
 // DB connectivity test
-app.get('/api/db-test', async (req, res) => {
+app.get("/api/db-test", async (req, res) => {
   try {
-    const [rows] = await dbPool.query('SELECT NOW() AS now');
-    const nowValue = Array.isArray(rows) && rows.length > 0 ? (rows[0] as any).now : null;
+    const [rows] = await dbPool.query("SELECT NOW() AS now");
+    const nowValue =
+      Array.isArray(rows) && rows.length > 0 ? (rows[0] as any).now : null;
     res.json({ success: true, now: nowValue });
   } catch (error) {
     res.status(500).json({ success: false, error: (error as Error).message });
@@ -38,6 +47,7 @@ async function start() {
   try {
     await connectDatabase();
     await kafkaProducer.connect();
+    await kafkaConsumer.start();
 
     server = app.listen(port, () => {
       console.log(`[Server]: Backend running on port ${port}`);
@@ -50,6 +60,12 @@ async function start() {
 
 async function shutdown(signal: NodeJS.Signals) {
   console.log(`[Server]: Received ${signal}, shutting down...`);
+
+  try {
+    await kafkaConsumer.disconnect();
+  } catch (error) {
+    console.error("[Kafka]: Error while disconnecting consumer", error);
+  }
 
   try {
     await kafkaProducer.disconnect();
