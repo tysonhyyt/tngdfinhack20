@@ -9,6 +9,7 @@
     "dev": "ts-node-dev src/main.ts"
   },
   "dependencies": {
+    "@aws-sdk/client-bedrock-runtime": "^3.1037.0",
     "dotenv": "^16.4.5",
     "express": "^4.19.2",
     "kafkajs": "^2.2.4",

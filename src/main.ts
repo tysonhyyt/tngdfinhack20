@@ -6,6 +6,7 @@ import {
   transactionRouter,
   transactionSyncRouter,
 } from "./modules/transaction/transaction.controller";
+import { bedrockRouter } from "./modules/bedrock/bedrock.controller";
 import {
   KafkaConsumerService,
   kafkaProducer,
@@ -25,6 +26,7 @@ app.use("/account", accountRouter);
 app.use("/api/transactions", transactionRouter);
 app.use("/sync", transactionSyncRouter);
 app.use("/session", sessionRouter);
+app.use("/api/bedrock", bedrockRouter);
 
 // Health check
 app.get("/health", (req, res) => {
