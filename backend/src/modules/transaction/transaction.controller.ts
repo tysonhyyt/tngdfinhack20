@@ -1,7 +1,47 @@
 import { Router, Request, Response } from 'express';
+import { kafkaProducer } from '../../infrastructure/kafka.service';
 import { syncOfflineTransaction } from './transaction.service';
 
 export const transactionRouter = Router();
+
+/**
+ * Publish one transaction event to Kafka (direct producer; not via syncOfflineTransaction).
+ * Body: { message: unknown } or { data: unknown }; optional { topic: string }.
+ */
+transactionRouter.post('/event', async (req: Request, res: Response) => {
+  try {
+    const topic = typeof req.body.topic === 'string' ? req.body.topic : undefined;
+    const message = req.body.message ?? req.body.data;
+
+    if (message === undefined || message === null) {
+      return res.status(400).json({
+        success: false,
+        error: {
+          code: 'INVALID_PAYLOAD',
+          message: 'Expected "message" or "data" in JSON body',
+        },
+      });
+    }
+
+    const resolvedTopic =
+      topic?.trim() || process.env.KAFKA_TOPIC || 'offline.transact.sync';
+    await kafkaProducer.sendTransactionEvent(resolvedTopic, message);
+
+    return res.status(202).json({
+      success: true,
+      message: 'Transaction event accepted for publishing',
+    });
+  } catch (error) {
+    console.error('Send transaction event error:', error);
+    return res.status(500).json({
+      success: false,
+      error: {
+        code: 'INTERNAL_ERROR',
+        message: 'Failed to publish transaction event',
+      },
+    });
+  }
+});
 
 /**
  * Endpoint to sync offline transactions.
