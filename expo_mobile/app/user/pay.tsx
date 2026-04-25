@@ -4,7 +4,7 @@ import { useState } from 'react';
 import QRCode from 'react-native-qrcode-svg';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { getWallet, deductBalance, addUserTransaction, addToSyncQueue } from '../../lib/wallet/store';
-import { getIdentity, signPayload, verifySignature, verifyCert } from '../../lib/crypto/identity';
+import { getIdentity, signPayload, verifySignature } from '../../lib/crypto/identity';
 import { formatCurrency, generateTransactionId } from '../../lib/utils';
 import { TNG } from '../../lib/theme';
 
@@ -12,7 +12,7 @@ type Step = 'enter_amount' | 'confirm' | 'receipt' | 'scan_ack' | 'done';
 
 export default function PayScreen() {
   const router = useRouter();
-  const { merchantId, merchantName, merchantPubKey, merchantCert } = useLocalSearchParams<{
+  const { merchantId, merchantName } = useLocalSearchParams<{
     merchantId: string;
     merchantName: string;
     merchantPubKey: string;
@@ -268,9 +268,9 @@ export default function PayScreen() {
             {ackError ? <Text style={styles.errorText}>{ackError}</Text> : null}
           </View>
         </CameraView>
-        <TouchableOpacity style={styles.skipButton} onPress={() => setStep('done')}>
-          <Text style={styles.skipButtonText}>Skip (demo)</Text>
-        </TouchableOpacity>
+        <View style={styles.scanHintBar}>
+          <Text style={styles.scanHintText}>Waiting for merchant's ACK QR…</Text>
+        </View>
       </View>
     );
   }
@@ -547,13 +547,13 @@ const styles = StyleSheet.create({
     padding: 8,
     borderRadius: TNG.radius.sm,
   },
-  skipButton: {
+  scanHintBar: {
     backgroundColor: TNG.bgSecondary,
     padding: 16,
     alignItems: 'center',
   },
-  skipButtonText: {
-    color: TNG.textSecondary,
+  scanHintText: {
+    color: TNG.textMuted,
     fontSize: TNG.font.sm,
   },
   doneCard: {

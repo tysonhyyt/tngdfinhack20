@@ -1,4 +1,4 @@
-import { View, Text, TouchableOpacity, StyleSheet, ActivityIndicator } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, ActivityIndicator, Modal } from 'react-native';
 import { useState } from 'react';
 import { useRouter } from 'expo-router';
 import QRCode from 'react-native-qrcode-svg';
@@ -18,6 +18,7 @@ export default function ReceiveScreen() {
   const [scanned, setScanned] = useState(false);
   const [verifyError, setVerifyError] = useState('');
   const [permission, requestPermission] = useCameraPermissions();
+  const [confirmVisible, setConfirmVisible] = useState(false);
 
   const merchant = getMerchant();
 
@@ -198,9 +199,45 @@ export default function ReceiveScreen() {
           </View>
         </View>
 
-        <TouchableOpacity style={styles.primaryButton} onPress={() => setStep('done')} activeOpacity={0.85}>
-          <Text style={styles.primaryButtonText}>Done</Text>
+        <TouchableOpacity
+          style={styles.primaryButton}
+          onPress={() => setConfirmVisible(true)}
+          activeOpacity={0.85}
+        >
+          <Text style={styles.primaryButtonText}>Mark as Done</Text>
         </TouchableOpacity>
+
+        <Modal
+          visible={confirmVisible}
+          transparent
+          animationType="fade"
+          onRequestClose={() => setConfirmVisible(false)}
+        >
+          <View style={styles.modalOverlay}>
+            <View style={styles.modalBox}>
+              <Text style={styles.modalTitle}>Confirm Payment</Text>
+              <Text style={styles.modalBody}>
+                Did the payer's screen show payment confirmed?
+              </Text>
+              <View style={styles.modalActions}>
+                <TouchableOpacity
+                  style={styles.modalCancel}
+                  onPress={() => setConfirmVisible(false)}
+                  activeOpacity={0.8}
+                >
+                  <Text style={styles.modalCancelText}>Not Yet</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.modalConfirm}
+                  onPress={() => { setConfirmVisible(false); setStep('done'); }}
+                  activeOpacity={0.85}
+                >
+                  <Text style={styles.modalConfirmText}>Yes, Done</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        </Modal>
       </View>
     );
   }
@@ -299,6 +336,68 @@ const styles = StyleSheet.create({
   },
   primaryButtonText: {
     fontSize: TNG.font.md,
+    fontWeight: '700',
+    color: TNG.textOnYellow,
+  },
+  buttonDisabled: {
+    opacity: 0.4,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 32,
+  },
+  modalBox: {
+    backgroundColor: TNG.bgCard,
+    borderRadius: TNG.radius.xl,
+    padding: 24,
+    width: '100%',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.25,
+    shadowRadius: 16,
+    elevation: 12,
+  },
+  modalTitle: {
+    fontSize: TNG.font.lg,
+    fontWeight: '700',
+    color: TNG.textPrimary,
+    marginBottom: 8,
+  },
+  modalBody: {
+    fontSize: TNG.font.base,
+    color: TNG.textSecondary,
+    lineHeight: 22,
+    marginBottom: 24,
+  },
+  modalActions: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  modalCancel: {
+    flex: 1,
+    padding: 14,
+    borderRadius: TNG.radius.md,
+    borderWidth: 1.5,
+    borderColor: TNG.border,
+    alignItems: 'center',
+  },
+  modalCancelText: {
+    fontSize: TNG.font.base,
+    fontWeight: '600',
+    color: TNG.textSecondary,
+  },
+  modalConfirm: {
+    flex: 1,
+    padding: 14,
+    borderRadius: TNG.radius.md,
+    backgroundColor: TNG.yellow,
+    alignItems: 'center',
+  },
+  modalConfirmText: {
+    fontSize: TNG.font.base,
     fontWeight: '700',
     color: TNG.textOnYellow,
   },
