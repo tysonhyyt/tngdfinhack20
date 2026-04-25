@@ -103,6 +103,32 @@ export function getMerchantTransactions(): Transaction[] {
   return getMerchant().transactions;
 }
 
+export function deduplicateStorage() {
+  const wallet = getWallet();
+  const seen = new Set<string>();
+  const dedupedWallet = wallet.transactions.filter((t) => {
+    if (seen.has(t.id)) return false;
+    seen.add(t.id);
+    return true;
+  });
+  if (dedupedWallet.length !== wallet.transactions.length) {
+    wallet.transactions = dedupedWallet;
+    saveWallet(wallet);
+  }
+
+  const merchant = getMerchant();
+  const seen2 = new Set<string>();
+  const dedupedMerchant = merchant.transactions.filter((t) => {
+    if (seen2.has(t.id)) return false;
+    seen2.add(t.id);
+    return true;
+  });
+  if (dedupedMerchant.length !== merchant.transactions.length) {
+    merchant.transactions = dedupedMerchant;
+    saveMerchant(merchant);
+  }
+}
+
 export function resetMerchant() {
   storage.remove(MERCHANT_KEY);
 }

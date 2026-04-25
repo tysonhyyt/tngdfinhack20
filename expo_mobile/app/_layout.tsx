@@ -2,11 +2,12 @@ import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect } from 'react';
 import { initIdentity } from '../lib/crypto/identity';
-import { getWallet, getMerchant, setWalletIdentity, setMerchantIdentity } from '../lib/wallet/store';
+import { getWallet, getMerchant, setWalletIdentity, setMerchantIdentity, deduplicateStorage } from '../lib/wallet/store';
 
 export default function RootLayout() {
   useEffect(() => {
     async function bootstrap() {
+      deduplicateStorage();
       const wallet = getWallet();
       const merchant = getMerchant();
       // Init shared keypair for this device (one identity per device)
