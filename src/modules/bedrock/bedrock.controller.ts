@@ -13,28 +13,20 @@ const BEDROCK_FALLBACK_MESSAGE =
   "Keep the rhythm: track one category you care about, celebrate when it drops, and adjust only where it still feels fair. " +
   "You are on a constructive path.";
 
+/** Fixed prompt for GET /invoke (no client payload). */
+const BEDROCK_DEFAULT_USER_PROMPT =
+  "In 2–3 short paragraphs, give friendly generic advice about weekly spending habits, saving a little more, and staying motivated. Do not claim access to real transaction data.";
+
 /**
- * POST /api/bedrock/invoke
- * Body: { "message": "user prompt" }
- * Success: { "message": "<model assistant text>" }
- * On Bedrock failure: same shape, HTTP 200, with a fixed savings-oriented summary instead of 500.
+ * GET /api/bedrock/invoke
+ * No body or query parameters. Uses a built-in prompt, then returns { "message": "<model text>" }.
+ * On Bedrock failure: same shape, HTTP 200, with a fixed savings-oriented summary.
  */
-bedrockRouter.post("/invoke", async (req: Request, res: Response) => {
-  const text =
-    typeof req.body.message === "string" ? req.body.message.trim() : "";
-
-  if (!text) {
-    return res.status(400).json({
-      success: false,
-      error: {
-        code: "INVALID_PAYLOAD",
-        message: 'Expected a non-empty string "message" in the JSON body.',
-      },
-    });
-  }
-
+bedrockRouter.get("/invoke", async (_req: Request, res: Response) => {
   try {
-    const output = await bedrockInvokeText({ userText: text });
+    const output = await bedrockInvokeText({
+      userText: BEDROCK_DEFAULT_USER_PROMPT,
+    });
     return res.status(200).json({ message: output });
   } catch (error) {
     console.error("[Bedrock]: invoke error", error);
