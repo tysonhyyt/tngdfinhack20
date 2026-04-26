@@ -131,7 +131,7 @@ export async function sessionFindOrCreateAccountByDeviceIdAndRole(
     };
   }
 
-  const currency = 'USD';
+  const currency = 'MYR';
 
   await dbPool.query(
     `
@@ -163,21 +163,22 @@ export async function findOrCreateAccountByDeviceIdAndRole(
   role: string
 ): Promise<AccountLookupResult> {
   const existing = await findAccountByDeviceIdAndRole(deviceId, role);
+  let offlineBalance =0;
 
   if (existing) {
     const displayName = normalizeDisplayName(existing.account.device_id, existing.account.role);
     const merchantName = existing.account.role === 'merchant' ? normalizeMerchantName(existing.account.device_id) : undefined;
-
+    offlineBalance = existing.account.offline_balance
     return {
       account: existing.account,
       displayName,
       status: 'active',
       merchantName,
     };
+  }else{
+    offlineBalance = 1000;
   }
-
-  const offlineBalance = role === 'merchant' ? 0 : 1000;
-  const currency = 'USD';
+  const currency = 'MYR';
 
   await dbPool.query(
     `
