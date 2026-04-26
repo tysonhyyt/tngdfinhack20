@@ -21,7 +21,6 @@ sessionRouter.post("/init", async (req: Request, res: Response) => {
 
   try {
     const account = await findOrCreateAccountByDeviceIdAndRole(deviceId, role);
-
     return res.json({
       success: true,
       userId: account.account.user_id,
