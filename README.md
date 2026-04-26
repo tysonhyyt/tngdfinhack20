@@ -1103,31 +1103,31 @@ sequenceDiagram
     participant X as Consumer Device (TEE)
     participant Y as Vendor Device (TEE)
 
-    Note over X,Y: PRE-CONDITION (Online) — TEE keys generated, App Certs issued by backend CA
+    Note over X,Y: PRE-CONDITION (Online) - TEE keys generated, App Certs issued by backend CA
 
-    Y-->>X: QR Code displayed (BLE addr + vendor cert fingerprint + ECDSA sig)
-    X->>X: Verify QR sig via cached CA public key; check timestamp drift
+    Y-->>X: QR Code displayed (BLE addr, vendor cert fingerprint, ECDSA sig)
+    X->>X: Verify QR sig via cached CA public key, check timestamp drift
     X->>Y: BLE Connection Request
     Y-->>X: BLE Connection Accepted
     X->>Y: ECDH Ephemeral Public Key
     Y-->>X: ECDH Ephemeral Public Key
-    Note over X,Y: Both derive shared secret → AES-256-GCM session key
+    Note over X,Y: Both derive shared secret, AES-256-GCM session key established
 
     rect rgb(210, 235, 255)
-        Note over X,Y: 🔒 All subsequent messages are AES-256-GCM encrypted
+        Note over X,Y: All subsequent messages are AES-256-GCM encrypted
 
-        X->>Y: MSG 1 · TX_REQUEST — amount, consumer cert, spending_counter, ECDSA sig
-        Y->>Y: Validate consumer_cert CA sig · check expiry · verify ECDSA sig · check tx_id uniqueness
-        Y->>Y: Create PENDING local record (30 s timeout)
-        Y-->>X: MSG 2 · TX_ACK — vendor cert, echoed amount/currency, ECDSA sig
-        X->>X: Validate vendor_cert CA sig · confirm amount & vendor_id match TX_REQUEST
+        X->>Y: MSG 1 - TX_REQUEST: amount, consumer cert, spending_counter, ECDSA sig
+        Y->>Y: Validate consumer_cert CA sig, check expiry, verify ECDSA sig, check tx_id uniqueness
+        Y->>Y: Create PENDING local record with 30s timeout
+        Y-->>X: MSG 2 - TX_ACK: vendor cert, echoed amount and currency, ECDSA sig
+        X->>X: Validate vendor_cert CA sig, confirm amount and vendor_id match TX_REQUEST
 
         Note over X: Biometric prompt (FaceID / Fingerprint)
-        X->>X: TEE unlocks: deduct balance, increment spending_counter (n → n+1)
-        X->>Y: MSG 3 · TX_CONFIRM — deduction_proof, new_spending_counter, ECDSA sig
-        Y->>Y: Verify counter = previous + 1 · validate deduction_proof · verify ECDSA sig
+        X->>X: TEE unlocks - deduct balance, increment spending_counter from n to n+1
+        X->>Y: MSG 3 - TX_CONFIRM: deduction_proof, new_spending_counter, ECDSA sig
+        Y->>Y: Verify counter = previous + 1, validate deduction_proof, verify ECDSA sig
         Y->>Y: Mark transaction COMPLETED in local storage
-        Y-->>X: MSG 4 · TX_RECEIPT — vendor ECDSA sig, status=COMPLETED, completed_at
+        Y-->>X: MSG 4 - TX_RECEIPT: vendor ECDSA sig, status=COMPLETED, completed_at
     end
 
     X->>Y: BLE Disconnect
