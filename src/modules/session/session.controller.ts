@@ -1,5 +1,5 @@
 import { Router, Request, Response } from "express";
-import { findOrCreateAccountByDeviceIdAndRole } from "../account/account.service";
+import { sessionFindOrCreateAccountByDeviceIdAndRole } from "../account/account.service";
 
 export const sessionRouter = Router();
 
@@ -20,7 +20,7 @@ sessionRouter.post("/init", async (req: Request, res: Response) => {
   }
 
   try {
-    const account = await findOrCreateAccountByDeviceIdAndRole(deviceId, role);
+    const account = await sessionFindOrCreateAccountByDeviceIdAndRole(deviceId, role);
     return res.json({
       success: true,
       userId: account.account.user_id,

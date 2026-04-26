@@ -113,6 +113,51 @@ export async function findAccountByDeviceIdAndRole(
   };
 }
 
+export async function sessionFindOrCreateAccountByDeviceIdAndRole(
+  deviceId: string,
+  role: string
+): Promise<AccountLookupResult> {
+  const existing = await findAccountByDeviceIdAndRole(deviceId, role);
+
+  if (existing) {
+    const displayName = normalizeDisplayName(existing.account.device_id, existing.account.role);
+    const merchantName = existing.account.role === 'merchant' ? normalizeMerchantName(existing.account.device_id) : undefined;
+
+    return {
+      account: existing.account,
+      displayName,
+      status: 'active',
+      merchantName,
+    };
+  }
+
+  const currency = 'USD';
+
+  await dbPool.query(
+    `
+    INSERT INTO account (account_id, user_id, device_id, role, offline_balance, currency)
+    VALUES (?, ?, ?, ?, ?, ?)
+    ON DUPLICATE KEY UPDATE
+      offline_balance = VALUES(offline_balance),
+      currency = VALUES(currency)
+    `,
+    [deviceId, deviceId, deviceId, role, 1000, currency]
+  );
+
+  return {
+    account: {
+      user_id: deviceId,
+      device_id: deviceId,
+      role,
+      offline_balance: 1000,
+      currency,
+    },
+    displayName: normalizeDisplayName(deviceId, role),
+    status: 'active',
+    merchantName: role === 'merchant' ? normalizeMerchantName(deviceId) : undefined,
+  };
+}
+
 export async function findOrCreateAccountByDeviceIdAndRole(
   deviceId: string,
   role: string
