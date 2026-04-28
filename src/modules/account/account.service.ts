@@ -87,6 +87,15 @@ function normalizeMerchantName(deviceId: string): string {
   return `Store ${deviceId}`;
 }
 
+function parseRoleFromDeviceId(deviceId: string): "user" | "merchant" | null {
+  const firstDash = deviceId.indexOf("-");
+  const prefix = firstDash > 0 ? deviceId.slice(0, firstDash).toLowerCase() : "";
+  if (prefix === "user" || prefix === "merchant") {
+    return prefix;
+  }
+  return null;
+}
+
 export async function findAccountByDeviceIdAndRole(
   deviceId: string,
   role: string
@@ -113,7 +122,7 @@ export async function findAccountByDeviceIdAndRole(
   };
 }
 
-export async function findOrCreateAccountByDeviceIdAndRole(
+export async function sessionFindOrCreateAccountByDeviceIdAndRole(
   deviceId: string,
   role: string
 ): Promise<AccountLookupResult> {
@@ -131,8 +140,54 @@ export async function findOrCreateAccountByDeviceIdAndRole(
     };
   }
 
-  const offlineBalance = role === 'merchant' ? 0 : 1000;
-  const currency = 'USD';
+  const currency = 'MYR';
+
+  await dbPool.query(
+    `
+    INSERT INTO account (account_id, user_id, device_id, role, offline_balance, currency)
+    VALUES (?, ?, ?, ?, ?, ?)
+    ON DUPLICATE KEY UPDATE
+      offline_balance = VALUES(offline_balance),
+      currency = VALUES(currency)
+    `,
+    [deviceId, deviceId, deviceId, role, 1000, currency]
+  );
+
+  return {
+    account: {
+      user_id: deviceId,
+      device_id: deviceId,
+      role,
+      offline_balance: 1000,
+      currency,
+    },
+    displayName: normalizeDisplayName(deviceId, role),
+    status: 'active',
+    merchantName: role === 'merchant' ? normalizeMerchantName(deviceId) : undefined,
+  };
+}
+
+export async function findOrCreateAccountByDeviceIdAndRole(
+  deviceId: string,
+  role: string
+): Promise<AccountLookupResult> {
+  const existing = await findAccountByDeviceIdAndRole(deviceId, role);
+  let offlineBalance =0;
+
+  if (existing) {
+    const displayName = normalizeDisplayName(existing.account.device_id, existing.account.role);
+    const merchantName = existing.account.role === 'merchant' ? normalizeMerchantName(existing.account.device_id) : undefined;
+    offlineBalance = existing.account.offline_balance
+    return {
+      account: existing.account,
+      displayName,
+      status: 'active',
+      merchantName,
+    };
+  }else{
+    offlineBalance = 1000;
+  }
+  const currency = 'MYR';
 
   await dbPool.query(
     `
@@ -160,9 +215,10 @@ export async function findOrCreateAccountByDeviceIdAndRole(
 }
 
 /**
- * For each consumer-side transaction, deducts `tx.amount` from `account.offline_balance`
- * where `user_id = tx.fromUserId`, `device_id = payload.deviceId`, and `role = 'user'`.
- * Skips entries where `fromUserId` does not match top-level `deviceId`, or amount is invalid.
+ * Applies offline balance update based on `deviceId` prefix:
+ * - `user-*`: subtract `tx.amount` using `tx.fromUserId`
+ * - `merchant-*`: add `tx.amount` using `tx.toMerchantId`
+ * Skips entries where participant id does not match top-level `deviceId`, or amount is invalid.
  */
 export async function deductOfflineBalanceFromConsumerPush(
   body: ConsumerPushOfflineBody,
@@ -172,6 +228,10 @@ export async function deductOfflineBalanceFromConsumerPush(
   const skippedTxIds: string[] = [];
 
   if (!deviceId) {
+    return { deductedTxIds, skippedTxIds };
+  }
+  const roleFromDeviceId = parseRoleFromDeviceId(deviceId);
+  if (!roleFromDeviceId) {
     return { deductedTxIds, skippedTxIds };
   }
 
@@ -186,13 +246,20 @@ export async function deductOfflineBalanceFromConsumerPush(
           : "";
 
     const tx = entry.tx;
-    if (!tx || typeof tx.fromUserId !== "string" || !tx.fromUserId.trim()) {
+    if (!tx) {
       if (txId) skippedTxIds.push(txId);
       continue;
     }
 
-    const userId = tx.fromUserId.trim();
-    if (userId !== deviceId) {
+    const participantIdRaw =
+      roleFromDeviceId === "merchant" ? tx.toMerchantId : tx.fromUserId;
+    if (typeof participantIdRaw !== "string" || !participantIdRaw.trim()) {
+      if (txId) skippedTxIds.push(txId);
+      continue;
+    }
+
+    const participantId = participantIdRaw.trim();
+    if (participantId !== deviceId) {
       if (txId) skippedTxIds.push(txId);
       continue;
     }
@@ -203,11 +270,12 @@ export async function deductOfflineBalanceFromConsumerPush(
       continue;
     }
 
+    const amountDelta = roleFromDeviceId === "merchant" ? amount : -amount;
     const [result] = await dbPool.query<ResultSetHeader>(
       `UPDATE account
-       SET offline_balance = offline_balance - ?
-       WHERE user_id = ? AND device_id = ? AND role = 'user'`,
-      [amount, userId, deviceId],
+       SET offline_balance = offline_balance + ?
+       WHERE user_id = ? AND device_id = ? AND role = ?`,
+      [amountDelta, participantId, deviceId, roleFromDeviceId],
     );
 
     if (result.affectedRows > 0) {
